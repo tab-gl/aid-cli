@@ -1,0 +1,29 @@
+{
+  "name": "ace-id",
+  "version": "0.1.0",
+  "description": "Ace Identity Console — CLI for AIDC applications and OAuth clients",
+  "type": "module",
+  "bin": {
+    "aidc": "./bin/aidc.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "aidc",
+    "ace-base",
+    "ace-id",
+    "oidc",
+    "oauth",
+    "cli"
+  ],
+  "author": "The Ace Base",
+  "license": "MIT"
+  }
+

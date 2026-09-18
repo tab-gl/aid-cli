@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+.npmignore 
+
+# Build artifacts
+*.tgz
+
+# Environment
+.env
+.env.*
+
+# Local runtime
+.cache/
+tmp/
