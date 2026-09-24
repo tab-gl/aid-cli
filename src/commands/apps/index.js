@@ -4,7 +4,7 @@ import { get } from "./get.js";
 import { update } from "./update.js";
 import { del } from "./delete.js";
 import { withScreen } from "../../ui/screen.js";
-import { dim } from "../../ui/colors.js";
+import { usage } from "../../ui/format.js";
 import { showBanner } from "../../ui/banner.js";
 
 const subcommands = { list, create, get, update, delete: del };
@@ -15,20 +15,20 @@ export async function apps(args = []) {
   if (!sub || sub === "help" || sub === "--help") {
     await withScreen(async () => {
       showBanner();
+      usage(`
+USAGE
 
-      console.log(`  ${dim("USAGE")}
+  aid apps <subcommand> [options]
 
-    aidc apps <subcommand> [options]
+SUBCOMMANDS
 
-  ${dim("SUBCOMMANDS")}
-
-    list                                 List applications
-    create --name <name>                 Create an application
-      [--description <text>]
-    get <id>                             Show one application
-    update <id> [--name <name>]          Update an application
-      [--description <text>]
-    delete <id>                          Delete an application
+  list                                 List applications
+  create --name <name>                 Create an application
+    [--description <text>]
+  get <id>                              Show one application
+  update <id> [--name <name>]           Update an application
+    [--description <text>]
+  delete <id>                           Delete an application
 `);
     });
 
