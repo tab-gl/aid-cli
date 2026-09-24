@@ -231,7 +231,7 @@ async function installVanillaSdk(project) {
   }
 
   let html = await fs.readFile(htmlPath, "utf8");
-  if (html.includes("ace-id-sdk.global.js")) return "already installed";
+  if (html.includes("ace-id-sdk.iife.js")) return "already installed";
 
   const response = await fetch(project.sdkUrl, {
     headers: { "user-agent": "ace-id-cli" }
@@ -241,13 +241,13 @@ async function installVanillaSdk(project) {
   }
 
   const sdkDir = path.join(process.cwd(), "vendor");
-  const sdkPath = path.join(sdkDir, "ace-id-sdk.global.js");
+  const sdkPath = path.join(sdkDir, "ace-id-sdk.iife.js");
   await fs.mkdir(sdkDir, { recursive: true });
   await fs.writeFile(sdkPath, await response.text(), "utf8");
 
   const relative = path.relative(path.dirname(htmlPath), sdkPath).replaceAll(path.sep, "/");
   const script = `  <script src="${relative.startsWith(".") ? relative : "./" + relative}"></script>\n`;
-  const head = /<head(?:\\s[^>]*)?>/i;
+  const head = /<head(?:\s[^>]*)?>/i;
   if (head.test(html)) html = html.replace(head, (match) => `${match}\n${script}`);
   else html = `${script}${html}`;
 
