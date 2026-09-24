@@ -5,6 +5,7 @@ import { logout } from "../src/commands/logout.js";
 import { whoami } from "../src/commands/whoami.js";
 import { apps } from "../src/commands/apps/index.js";
 import { clients } from "../src/commands/clients/index.js";
+import { setup } from "../src/commands/setup.js";
 import { failure } from "../src/ui/format.js";
 import { dim } from "../src/ui/colors.js";
 import { showBanner } from "../src/ui/banner.js";
@@ -12,7 +13,7 @@ import { withScreen } from "../src/ui/screen.js";
 
 const [, , command, ...args] = process.argv;
 
-const commands = { login, logout, whoami, apps, clients };
+const commands = { setup, login, logout, whoami, apps, clients };
 
 if (!command || command === "help" || command === "--help") {
   await withScreen(async () => {
@@ -51,6 +52,7 @@ function printHelp() {
 
   ${dim("COMMANDS")}
 
+    setup                    Set up an Ace ID project
     login                    Sign in via Ace ID
     logout                   Sign out
     whoami                   Show signed-in account
