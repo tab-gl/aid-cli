@@ -117,3 +117,27 @@ export function usage(text) {
   }
   console.log("");
 }
+
+/* ── Responsive command list ───────────── */
+
+export function commandList(rows) {
+  if (rows.length === 0) return;
+
+  const columns = process.stdout.columns || 80;
+  const indent = "    ";
+  const gap = "  ";
+
+  console.log("");
+
+  for (const [command, description] of rows) {
+    const oneLine = indent.length + command.length + gap.length + description.length;
+    if (oneLine <= columns) {
+      console.log(`${indent}${bold(command)}${gap}${description}`);
+    } else {
+      console.log(`${indent}${bold(command)}`);
+      console.log(`${indent}  ${description}`);
+    }
+  }
+
+  console.log("");
+}
