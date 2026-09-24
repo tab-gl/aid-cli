@@ -20,6 +20,10 @@ export function warn(message) {
   console.error(`${yellow("!")} ${message}`);
 }
 
+export function info(message) {
+  console.log(`  ${message}`);
+}
+
 /* ── Headings ───────────────────────────── */
 
 export function heading(text) {
