@@ -4,6 +4,7 @@
   "description": "Ace Identity Console — CLI for AIDC applications and OAuth clients",
   "type": "module",
   "bin": {
+    "aid": "./bin/aid.js",
     "aidc": "./bin/aidc.js"
   },
   "files": [
