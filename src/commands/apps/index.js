@@ -4,7 +4,7 @@ import { get } from "./get.js";
 import { update } from "./update.js";
 import { del } from "./delete.js";
 import { withScreen } from "../../ui/screen.js";
-import { usage } from "../../ui/format.js";
+import { usage, commandList } from "../../ui/format.js";
 import { showBanner } from "../../ui/banner.js";
 
 const subcommands = { list, create, get, update, delete: del };
@@ -21,15 +21,14 @@ USAGE
   aid apps <subcommand> [options]
 
 SUBCOMMANDS
-
-  list                                 List applications
-  create --name <name>                 Create an application
-    [--description <text>]
-  get <id>                              Show one application
-  update <id> [--name <name>]           Update an application
-    [--description <text>]
-  delete <id>                           Delete an application
 `);
+      commandList([
+        ["list", "List applications"],
+        ["create --name <name>", "Create an application"],
+        ["get <id>", "Show one application"],
+        ["update <id>", "Update an application"],
+        ["delete <id>", "Delete an application"]
+      ]);
     });
 
     return;
