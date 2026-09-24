@@ -4,7 +4,7 @@ import { get } from "./get.js";
 import { del } from "./delete.js";
 import { rotate } from "./rotate.js";
 import { withScreen } from "../../ui/screen.js";
-import { usage } from "../../ui/format.js";
+import { usage, commandList } from "../../ui/format.js";
 import { showBanner } from "../../ui/banner.js";
 
 const subcommands = {
@@ -27,17 +27,14 @@ USAGE
   aid clients <subcommand> [options]
 
 SUBCOMMANDS
-
-  list                                 List clients
-  create --name <n> --redirect <uri>    Create a client
-    [--redirect <uri>...]
-    [--scope <s>...]
-    [--id <client_id>]
-    [--public]
-  get <client_id>                       Show one client
-  delete <client_id>                    Delete a client
-  rotate-secret <client_id>             Rotate the secret
 `);
+      commandList([
+        ["list", "List clients"],
+        ["create --name <n>", "Create a client"],
+        ["get <client_id>", "Show one client"],
+        ["delete <client_id>", "Delete a client"],
+        ["rotate-secret <client_id>", "Rotate the secret"]
+      ]);
     });
 
     return;
