@@ -8,6 +8,7 @@ import { clients } from "../src/commands/clients/index.js";
 import { setup } from "../src/commands/setup.js";
 import { failure } from "../src/ui/format.js";
 import { dim } from "../src/ui/colors.js";
+import { commandList } from "../src/ui/format.js";
 import { showBanner } from "../src/ui/banner.js";
 import { withScreen } from "../src/ui/screen.js";
 
@@ -46,27 +47,17 @@ try {
 }
 
 function printHelp() {
-  console.log(`  ${dim("USAGE")}
+  console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n`);
+  commandList([
+    ["setup", "Set up an Ace ID project"],
+    ["login", "Sign in via Ace ID"],
+    ["logout", "Sign out"],
+    ["whoami", "Show signed-in account"],
+    ["apps <subcommand>", "Manage applications"],
+    ["clients <subcommand>", "Manage OAuth clients"],
+    ["version", "Show version"],
+    ["help", "Show this message"]
+  ]);
 
-    aid <command> [options]
-
-  ${dim("COMMANDS")}
-
-    setup                    Set up an Ace ID project
-    login                    Sign in via Ace ID
-    logout                   Sign out
-    whoami                   Show signed-in account
-    apps <subcommand>        Manage applications
-    clients <subcommand>     Manage OAuth clients
-    version                  Show version
-    help                     Show this message
-
-  ${dim("SUPPORT")}
-
-    Docs        https://docs.ace-base.cc
-    Support     https://bsky.app/profile/ace-base.cc
-
-  Run \`aid apps help\` or \`aid clients help\`
-  for subcommand details.
-`);
+  console.log(`  ${dim("SUPPORT")}\n\n    Docs        https://docs.ace-base.cc\n    Support     https://bsky.app/profile/ace-base.cc\n`);
 }
