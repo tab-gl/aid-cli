@@ -1,29 +1,15 @@
 import { apiJson } from "../../api/client.js";
+import { success, fields, warn } from "../../ui/format.js";
 
 export async function rotate(args) {
   const [id] = args;
+  if (!id) throw new Error("Usage: aid clients rotate-secret <client_id>");
 
-  if (!id) {
-    throw new Error(
-      "Usage: aidc clients rotate-secret <client_id>"
-    );
-  }
+  const result = await apiJson(`/clients/${encodeURIComponent(id)}/rotate-secret`, { method: "POST" });
 
-  const result = await apiJson(
-    `/clients/${encodeURIComponent(id)}/rotate-secret`,
-    { method: "POST" }
-  );
-
-  console.log("");
-  console.log(`✓ Rotated secret for ${result.client_id}`);
-  console.log("");
-  console.log(`  client_secret   ${result.client_secret}`);
-  console.log("");
-  console.log(
-    "  Save this now. It will not be shown again."
-  );
-  console.log(
-    "  The previous secret is immediately invalid."
-  );
+  success(`Rotated secret for ${result.client_id}`);
+  fields([["Client Secret", result.client_secret]]);
+  warn("Save this secret now. It will not be shown again.");
+  warn("The previous secret is immediately invalid.");
   console.log("");
 }
