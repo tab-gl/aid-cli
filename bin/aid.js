@@ -63,8 +63,8 @@ function printHelp() {
 
   ${dim("SUPPORT")}
 
-    Docs        https://ace-base.cc/docs
-    Issues      https://github.com/aceyash-dev/ace-id/issues
+    Docs        https://docs.ace-base.cc
+    Support     https://bsky.app/profile/ace-base.cc
 
   Run \`aid apps help\` or \`aid clients help\`
   for subcommand details.
