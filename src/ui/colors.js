@@ -2,7 +2,7 @@
  * Ace ID terminal palette.
  *
  * Void Black: terminal/UI background.
- * Moonstone: primary foreground.
+ * F2F2F2: primary terminal foreground.
  */
 
 function supportsColor(stream) {
@@ -14,38 +14,36 @@ function supportsColor(stream) {
 
 const enabled = supportsColor(process.stdout);
 const VOID_BLACK = [0, 0, 0];
-const MOONSTONE = [115, 169, 194];
+const F2F2F2 = [242, 242, 242];
 
-const rgb = (r, g, b, foreground = true) =>
-  `\\x1b[${foreground ? 38 : 48};2;${r};${g};${b}m`;
-const reset = "\\x1b[0m";
+const ansi = (code) => `\\x1b[${code}m`;
+const fg = ansi(`38;2;${F2F2F2.join(";")}`);
+const bg = ansi(`48;2;${VOID_BLACK.join(";")}`);
+const reset = ansi("0");
 
 const wrap = (open) => (s) =>
   enabled ? `${open}${s}${reset}` : String(s);
 
-const moonstone = `\\x1b[38;2;${MOONSTONE[0]};${MOONSTONE[1]};${MOONSTONE[2]}m`;
-const voidBlack = `\\x1b[48;2;${VOID_BLACK[0]};${VOID_BLACK[1]};${VOID_BLACK[2]}m`;
-
-export const dim = (s) =>
-  enabled ? `\\x1b[38;2;90;120;135m${s}${reset}` : String(s);
-export const bold = wrap(`${moonstone}\\x1b[1m`);
-export const red = wrap(`${rgb(225, 90, 90)}`);
-export const green = wrap(`${rgb(115, 190, 145)}`);
-export const yellow = wrap(`${rgb(220, 185, 105)}`);
-export const blue = wrap(`${rgb(95, 155, 190)}`);
+export const dim = (s) => wrap(fg)(s);
+export const bold = (s) => wrap(`${fg}${ansi("1")}`)(s);
+export const red = (s) => wrap(`${ansi("38;2;225;90;90")}`)(s);
+export const green = (s) => wrap(`${ansi("38;2;115;190;145")}`)(s);
+export const yellow = (s) => wrap(`${ansi("38;2;220;185;105")}`)(s);
+export const blue = (s) => wrap(`${ansi("38;2;95;155;190")}`)(s);
 export const gray = dim;
 
 export const inverse = (s) =>
-  enabled ? `${voidBlack}${moonstone}${s}${reset}` : String(s);
+  enabled ? `${bg}${fg}${s}${reset}` : String(s);
 
-// Primary terminal foreground/background helpers.
-export const fg = (s) =>
-  enabled ? `${moonstone}${s}${reset}` : String(s);
-export const bg = (s) =>
-  enabled ? `${voidBlack}${s}${reset}` : String(s);
+export const foreground = (s) =>
+  enabled ? `${fg}${s}${reset}` : String(s);
+
+export const background = (s) =>
+  enabled ? `${bg}${s}${reset}` : String(s);
 
 export const colorsEnabled = enabled;
+
 export const palette = {
   voidBlack: "#000000",
-  moonstone: "#73A9C2"
+  foreground: "#F2F2F2"
 };
