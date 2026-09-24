@@ -59,5 +59,9 @@ function printHelp() {
     ["help", "Show this message"]
   ]);
 
-  console.log(`  ${dim("SUPPORT")}\n\n    Docs        https://docs.ace-base.cc\n    Support     https://bsky.app/profile/ace-base.cc\n`);
+  console.log(`  ${dim("SUPPORT")}`);
+  commandList([
+    ["Docs", "https://docs.ace-base.cc"],
+    ["Support", "https://bsky.app/profile/ace-base.cc"]
+  ]);
 }
