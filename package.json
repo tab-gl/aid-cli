@@ -1,10 +1,11 @@
 {
   "name": "ace-id",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Ace Identity Console — CLI for AIDC applications and OAuth clients",
   "type": "module",
   "bin": {
     "aid": "./bin/aid.js",
+    "ace-id": "./bin/ace-id.js",
     "aidc": "./bin/aidc.js"
   },
   "files": [
@@ -17,6 +18,7 @@
     "node": ">=18"
   },
   "keywords": [
+    "aid",
     "aidc",
     "ace-base",
     "ace-id",
