@@ -155,7 +155,7 @@ export async function setup() {
       ["Config", CONFIG_FILE]
     ]);
 
-    if (project.type.startsWith("android-") && sdkStatus === "installed") {
+    if (project.sdkMode === "android" && sdkStatus === "installed") {
       console.log(
         `  ${dim("NEXT")}
 
@@ -163,11 +163,25 @@ export async function setup() {
     Add it to your app module dependencies.
 `
       );
+    } else if (project.sdkMode === "android") {
+      console.log(
+        `  ${dim("NEXT")}
+
+    Android SDK setup was not completed. The latest AAR can be downloaded from the Ace ID SDK GitHub release.
+`
+      );
     } else if (project.sdkMode === "vanilla" && sdkStatus === "installed") {
       console.log(
-        `  ${dim("NEXT")}\n\n    Installed the Vanilla browser SDK at ${project.sdkPath}.\n    It is loaded automatically by your index.html. Use the global \`AceID\` API.\n`
+        `  ${dim("NEXT")}\n\n    Installed the Vanilla browser SDK at ${project.sdkPath}.
+    It is loaded automatically by your index.html. Use the global \`AceID\` API.
+`
       );
-    } else if (project.sdk && sdkStatus === "installed") {
+    } else if (project.sdkMode === "vanilla") {
+      console.log(
+        `  ${dim("NEXT")}\n\n    The Vanilla browser SDK was not installed automatically.
+`
+      );
+    } else if (project.sdk && project.sdkMode === "build" && sdkStatus === "installed") {
       console.log(
         `  ${dim("NEXT")}
 
@@ -175,7 +189,7 @@ export async function setup() {
     Use the values in ${CONFIG_FILE} to initialize Ace ID.
 `
       );
-    } else if (project.sdk) {
+    } else if (project.sdk && project.sdkMode === "build") {
       console.log(
         `  ${dim("NEXT")}
 
@@ -183,14 +197,6 @@ export async function setup() {
     ${packageInstallCommand(project.packageManager, project.sdk)}
 
     Then initialize it with the values in ${CONFIG_FILE}.
-`
-      );
-    } else {
-      console.log(
-        `  ${dim("NEXT")}
-
-    This is a native Android project. No browser SDK was installed.
-    Use the values in ${CONFIG_FILE} with the Android integration when available.
 `
       );
     }
