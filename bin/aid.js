@@ -66,7 +66,7 @@ function printHelp() {
     Docs        https://ace-base.cc/docs
     Issues      https://github.com/aceyash-dev/ace-id/issues
 
-  Run `aid apps help` or `aid clients help`
+  Run \`aid apps help\` or \`aid clients help\`
   for subcommand details.
 `);
 }
