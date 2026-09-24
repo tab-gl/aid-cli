@@ -12,14 +12,14 @@ npm install -g ace-id
 
 Usage
 
-\`\`\`sh
+```sh
 aid login
 aid whoami
 aid apps list
 aid apps create --name "My App"
 aid clients create --name "Web App" --redirect https://example.com/cb
 aid logout
-\`\`\`
+```
 
 Run `aid` with no arguments for the full command list.
 
