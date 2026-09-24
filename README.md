@@ -1,4 +1,4 @@
-# aid
+# Ace ID CLI
 
 Ace Identity Console — command line interface for Ace Identity.
 
@@ -22,6 +22,30 @@ aid logout
 ```
 
 Run `aid` with no arguments for the full command list.
+
+## Project setup
+
+Initialize a project with the interactive setup wizard:
+
+```sh
+npx ace-id init
+```
+
+Or after installing the package globally:
+
+```sh
+npm install -g ace-id
+ace-id init
+```
+
+The same setup flow is available from both CLI names:
+
+```sh
+aid setup
+aidc setup
+```
+
+`aid` is canonical. `aidc` remains a legacy compatibility alias.
 
 
 The canonical command is `aid`. The old `aidc` command remains available as a compatibility alias for existing scripts and developer workflows.
