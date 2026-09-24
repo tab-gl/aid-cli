@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const SDK_PACKAGE = "ace-id-sdk";
-const VANILLA_SDK_URL = "https://unpkg.com/ace-id-sdk@latest/dist/ace-id-sdk.global.js";
+const VANILLA_SDK_URL = "https://unpkg.com/ace-id-sdk@latest/dist/ace-id-sdk.iife.js";
 
 export async function detectProject() {
   const root = process.cwd();
@@ -51,6 +51,7 @@ export async function detectProject() {
       type: "vite",
       label: deps.react ? "React + Vite" : "Vite",
       sdk: SDK_PACKAGE,
+      sdkMode: "build",
       packageManager: detectPackageManager(files)
     };
   }
@@ -64,6 +65,7 @@ export async function detectProject() {
       type: "react",
       label: "React",
       sdk: SDK_PACKAGE,
+      sdkMode: "build",
       packageManager: detectPackageManager(files)
     };
   }
@@ -71,7 +73,7 @@ export async function detectProject() {
   return {
     type: "vanilla",
     label: "Vanilla JavaScript",
-    sdk: "ace-id-sdk-vanilla",
+    sdk: SDK_PACKAGE,
     sdkMode: "vanilla",
     sdkUrl: VANILLA_SDK_URL,
     packageManager: null
