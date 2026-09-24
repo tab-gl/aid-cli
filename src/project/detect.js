@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const SDK_PACKAGE = "ace-id";
+const SDK_PACKAGE = "ace-id-sdk";
+const VANILLA_SDK_URL = "https://unpkg.com/ace-id-sdk@latest/dist/ace-id-sdk.global.js";
 
 export async function detectProject() {
   const root = process.cwd();
@@ -14,6 +15,7 @@ export async function detectProject() {
       type: language === "kotlin" ? "android-kotlin" : "android-java",
       label: language === "kotlin" ? "Android (Kotlin)" : "Android (Java)",
       sdk: "ace-id-sdk-android",
+      sdkMode: "android",
       packageManager: null
     };
   }
@@ -34,6 +36,7 @@ export async function detectProject() {
       type: "next",
       label: "Next.js",
       sdk: SDK_PACKAGE,
+      sdkMode: "build",
       packageManager: detectPackageManager(files)
     };
   }
@@ -68,8 +71,10 @@ export async function detectProject() {
   return {
     type: "vanilla",
     label: "Vanilla JavaScript",
-    sdk: SDK_PACKAGE,
-    packageManager: detectPackageManager(files)
+    sdk: "ace-id-sdk-vanilla",
+    sdkMode: "vanilla",
+    sdkUrl: VANILLA_SDK_URL,
+    packageManager: null
   };
 }
 
