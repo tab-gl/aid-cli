@@ -1,4 +1,4 @@
-import { colorsEnabled } from "./colors.js";
+import { colorsEnabled, palette } from "./colors.js";
 
 /*
  * Screen helpers.
@@ -31,6 +31,7 @@ export function clear() {
    *  2J   clear visible screen (scrollback preserved)
    *  3J   clear scrollback too (may be ignored on some terminals)
    */
+  if (colorsEnabled) out(`${ESC}[48;2;0;0;0m${ESC}[38;2;115;169;194m`);
   out(`${ESC}[H`);
   out(`${ESC}[2J`);
   out(`${ESC}[3J`);
