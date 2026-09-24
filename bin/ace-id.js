@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import { setup } from "../src/commands/setup.js";
+import { failure, usage } from "../src/ui/format.js";
+import { showBanner } from "../src/ui/banner.js";
+import { withScreen } from "../src/ui/screen.js";
 
 const [, , command, ...args] = process.argv;
 
@@ -8,14 +11,27 @@ if (!command || command === "init" || command === "setup") {
   try {
     await setup(args);
   } catch (err) {
-    console.error("\n✗ " + (err instanceof Error ? err.message : String(err)) + "\n");
+    failure(err instanceof Error ? err.message : String(err));
     process.exitCode = 1;
   }
   process.exit();
 }
 
 if (command === "--help" || command === "help") {
-  console.log("\nUsage:\n  ace-id init      Initialize the current project\n  ace-id setup     Alias for init\n\nThe canonical developer CLI is:\n  aid setup\n  aidc setup      Legacy alias\n");
+  await withScreen(async () => {
+    showBanner();
+    usage(`
+Usage
+
+  ace-id init      Initialize the current project
+  ace-id setup     Alias for init
+
+Canonical developer CLI
+
+  aid setup
+  aidc setup       Legacy alias
+`);
+  });
   process.exit(0);
 }
 
