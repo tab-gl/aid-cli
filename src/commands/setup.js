@@ -9,7 +9,7 @@ import { loadTokens } from "../auth/tokens.js";
 import { login } from "../auth/login.js";
 import { apiJson } from "../api/client.js";
 import { ISSUER, SCOPES } from "../auth/config.js";
-import { success, fields, warn } from "../ui/format.js";
+import { success, fields, warn, heading } from "../ui/format.js";
 import { dim } from "../ui/colors.js";
 import { showBanner } from "../ui/banner.js";
 import { detectProject } from "../project/detect.js";
@@ -32,7 +32,9 @@ export async function setup() {
 
     const project = await detectProject();
 
-    console.log(`  ${dim("SETUP")}
+    heading("SETUP");
+
+    console.log(`
 
   Create an Ace ID application and OAuth client for this project.
   Existing CLI credentials are never overwritten.
@@ -231,7 +233,7 @@ async function installVanillaSdk(project) {
   }
 
   let html = await fs.readFile(htmlPath, "utf8");
-  if (html.includes("ace-id-sdk.iife.js")) return "already installed";
+  if (html.includes("ace-id-sdk.global.js")) return "already installed";
 
   const response = await fetch(project.sdkUrl, {
     headers: { "user-agent": "ace-id-cli" }
@@ -241,7 +243,7 @@ async function installVanillaSdk(project) {
   }
 
   const sdkDir = path.join(process.cwd(), "vendor");
-  const sdkPath = path.join(sdkDir, "ace-id-sdk.iife.js");
+  const sdkPath = path.join(sdkDir, "ace-id-sdk.global.js");
   await fs.mkdir(sdkDir, { recursive: true });
   await fs.writeFile(sdkPath, await response.text(), "utf8");
 
