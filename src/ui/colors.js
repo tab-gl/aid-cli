@@ -15,8 +15,9 @@ function supportsColor(stream) {
 const enabled = supportsColor(process.stdout);
 const VOID_BLACK = [0, 0, 0];
 const F2F2F2 = [242, 242, 242];
+const ESC = String.fromCharCode(27);
 
-const ansi = (code) => `\\x1b[${code}m`;
+const ansi = (code) => `${ESC}[${code}m`;
 const fg = ansi(`38;2;${F2F2F2.join(";")}`);
 const bg = ansi(`48;2;${VOID_BLACK.join(";")}`);
 const reset = ansi("0");
@@ -26,10 +27,10 @@ const wrap = (open) => (s) =>
 
 export const dim = (s) => wrap(fg)(s);
 export const bold = (s) => wrap(`${fg}${ansi("1")}`)(s);
-export const red = (s) => wrap(`${ansi("38;2;225;90;90")}`)(s);
-export const green = (s) => wrap(`${ansi("38;2;115;190;145")}`)(s);
-export const yellow = (s) => wrap(`${ansi("38;2;220;185;105")}`)(s);
-export const blue = (s) => wrap(`${ansi("38;2;95;155;190")}`)(s);
+export const red = (s) => wrap(ansi("38;2;225;90;90"))(s);
+export const green = (s) => wrap(ansi("38;2;115;190;145"))(s);
+export const yellow = (s) => wrap(ansi("38;2;220;185;105"))(s);
+export const blue = (s) => wrap(ansi("38;2;95;155;190"))(s);
 export const gray = dim;
 
 export const inverse = (s) =>
