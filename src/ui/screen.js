@@ -1,4 +1,4 @@
-import { colorsEnabled, palette } from "./colors.js";
+import { colorsEnabled } from "./colors.js";
 
 /*
  * Screen helpers.
@@ -66,6 +66,7 @@ export async function withScreen(fn) {
     return await fn();
   } finally {
     if (interactive) {
+      out(`${ESC}[0m`);
       showCursor();
     }
   }
