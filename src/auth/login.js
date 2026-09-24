@@ -16,6 +16,7 @@ import {
 import { waitForCallback } from "./callback.js";
 import { saveTokens } from "./tokens.js";
 import { spinner } from "../ui/spinner.js";
+import { info } from "../ui/format.js";
 
 export async function login() {
   const verifier = generateVerifier();
@@ -34,8 +35,8 @@ export async function login() {
 
   const codePromise = waitForCallback(state);
 
-  console.log("\nOpening browser to sign in…\n");
-  console.log("If it doesn't open automatically, visit:\n");
+  info("Opening browser to sign in…");
+  info("If it doesn't open automatically, visit:");
   console.log("  " + authorizeUrl.toString() + "\n");
 
   openBrowser(authorizeUrl.toString());
