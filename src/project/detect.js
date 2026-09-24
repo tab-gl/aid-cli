@@ -2,7 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const SDK_PACKAGE = "ace-id-sdk";
-const VANILLA_SDK_URL = "https://unpkg.com/ace-id-sdk@latest/dist/ace-id-sdk.iife.js";
+const VANILLA_SDK_FILE = "ace-id-sdk.global.js";
+const VANILLA_SDK_URL = "https://unpkg.com/ace-id-sdk@latest/dist/ace-id-sdk.global.js";
 
 export async function detectProject() {
   const root = process.cwd();
