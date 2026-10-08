@@ -48,7 +48,7 @@ try {
 }
 
 function printHelp() {
-  console.log(`  ${dim("USAGE")}\\n\\n    aid <command> [options]\\n`);
+  console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n`);
 
   console.log(`  ${dim("COMMANDS")}`);
   commandList([
@@ -63,7 +63,7 @@ function printHelp() {
     ["help", "Show this message"]
   ]);
 
-  console.log(`\\n  ${dim("SETUP OPTIONS")}`);
+  console.log(`\n  ${dim("SETUP OPTIONS")}`);
   commandList([
     ["--interactive, -i", "Run the interactive setup wizard"],
     ["--wizard", "Alias for --interactive"],
@@ -73,7 +73,7 @@ function printHelp() {
     ["--force, -f", "Replace an existing .aid.json"]
   ]);
 
-  console.log(`\\n  ${dim("APPS SUBCOMMANDS")}`);
+  console.log(`\n  ${dim("APPS SUBCOMMANDS")}`);
   commandList([
     ["apps list", "List applications"],
     ["apps create --name <name>", "Create an application"],
@@ -84,7 +84,7 @@ function printHelp() {
     ["apps delete <id>", "Delete an application"]
   ]);
 
-  console.log(`\\n  ${dim("CLIENTS SUBCOMMANDS")}`);
+  console.log(`\n  ${dim("CLIENTS SUBCOMMANDS")}`);
   commandList([
     ["clients list", "List OAuth clients"],
     ["clients create --name <name> --redirect <uri>", "Create a client"],
@@ -97,7 +97,7 @@ function printHelp() {
     ["clients rotate-secret <client_id>", "Rotate a client secret"]
   ]);
 
-  console.log(`\\n  ${dim("HELP / VERSION FLAGS")}`);
+  console.log(`\n  ${dim("HELP / VERSION FLAGS")}`);
   commandList([
     ["--help, -h", "Show help"],
     ["--version, -v", "Show CLI version"],
@@ -105,14 +105,14 @@ function printHelp() {
     ["version", "Show CLI version"]
   ]);
 
-  console.log(`\\n  ${dim("ALIASES")}`);
+  console.log(`\n  ${dim("ALIASES")}`);
   commandList([
     ["aid", "Canonical command"],
     ["ace-id", "Compatibility alias"],
     ["aidc", "Compatibility alias"]
   ]);
 
-  console.log(`\\n  ${dim("SUPPORT")}`);
+  console.log(`\n  ${dim("SUPPORT")}`);
   commandList([
     ["Docs", "https://docs.ace-base.cc"],
     ["Support", "https://bsky.app/profile/ace-base.cc"]
