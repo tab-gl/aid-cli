@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import readline from "node:readline/promises";
@@ -16,6 +17,8 @@ import { detectProject } from "../project/detect.js";
 
 const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
+const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
+const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
 
 export async function setup() {
@@ -242,10 +245,16 @@ async function installVanillaSdk(project) {
     throw new Error(`Failed to download the latest Vanilla SDK (HTTP ${response.status}).`);
   }
 
+  const source = Buffer.from(await response.arrayBuffer());
+  const digest = crypto.createHash("sha256").update(source).digest("hex");
+  if (!/^[a-f0-9]{64}$/i.test(VANILLA_SDK_SHA256) || digest !== VANILLA_SDK_SHA256.toLowerCase()) {
+    throw new Error("Vanilla SDK integrity check failed. Installation was aborted.");
+  }
+
   const sdkDir = path.join(process.cwd(), "vendor");
   const sdkPath = path.join(sdkDir, "ace-id-sdk.global.js");
   await fs.mkdir(sdkDir, { recursive: true });
-  await fs.writeFile(sdkPath, await response.text(), "utf8");
+  await fs.writeFile(sdkPath, source);
 
   const relative = path.relative(path.dirname(htmlPath), sdkPath).replaceAll(path.sep, "/");
   const script = `  <script src="${relative.startsWith(".") ? relative : "./" + relative}"></script>\n`;
