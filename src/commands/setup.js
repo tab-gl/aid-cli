@@ -17,7 +17,6 @@ import { detectProject } from "../project/detect.js";
 
 const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
-const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
 const ANDROID_SDK_RELEASE = "1.1";
 const ANDROID_SDK_ASSET = "library-release.aar";
@@ -104,7 +103,6 @@ export async function setup(args = []) {
   let sdkStatus = "not applicable";
   try {
     if (project.sdkMode === "android") sdkStatus = await installAndroidSdk(project);
-    else if (project.sdkMode === "vanilla") sdkStatus = await installVanillaSdk(project);
     else if (project.sdk && project.sdkMode === "build") {
       sdkStatus = await hasDependency(project.sdk) ? "already installed" : await installSdk(project);
     }
@@ -224,56 +222,6 @@ async function writeAtomic(file, data, mode = 0o644) {
     throw err;
   }
 }
-async function installVanillaSdk(project) {
-  const htmlCandidates = ["index.html", "public/index.html"];
-  let htmlPath = null;
-
-  for (const candidate of htmlCandidates) {
-    try {
-      await fs.access(path.join(process.cwd(), candidate));
-      htmlPath = path.join(process.cwd(), candidate);
-      break;
-    } catch {}
-  }
-
-  if (!htmlPath) {
-    warn("No index.html found. Skipped automatic Vanilla SDK injection.");
-    return "skipped";
-  }
-
-  let html = await fs.readFile(htmlPath, "utf8");
-  if (html.includes("ace-id-sdk.global.js")) return "already installed";
-
-  const response = await fetch(project.sdkUrl, {
-    headers: { "user-agent": "ace-id-cli" }
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to download the pinned Vanilla SDK (HTTP ${response.status}).`);
-  }
-
-  const source = Buffer.from(await response.arrayBuffer());
-  const digest = crypto.createHash("sha256").update(source).digest("hex");
-  if (!/^[a-f0-9]{64}$/i.test(VANILLA_SDK_SHA256) || digest !== VANILLA_SDK_SHA256.toLowerCase()) {
-    throw new Error("Vanilla SDK integrity check failed. Installation was aborted.");
-  }
-
-  const sdkDir = path.join(process.cwd(), "vendor");
-  const sdkPath = path.join(sdkDir, "ace-id-sdk.global.js");
-  await fs.mkdir(sdkDir, { recursive: true });
-  await writeAtomic(sdkPath, source);
-
-  const relative = path.relative(path.dirname(htmlPath), sdkPath).replaceAll(path.sep, "/");
-  const script = `  <script src="${relative.startsWith(".") ? relative : "./" + relative}"></script>\n`;
-  const head = /<head(?:\s[^>]*)?>/i;
-  if (head.test(html)) html = html.replace(head, (match) => `${match}\n${script}`);
-  else html = `${script}${html}`;
-
-  await writeAtomic(htmlPath, html, 0o644);
-  project.sdkPath = path.relative(process.cwd(), sdkPath);
-  project.sdkUrl = relative;
-  return "installed";
-}
-
 async function installAndroidSdk(project) {
   const releaseResponse = await fetch(
     `https://api.github.com/repos/${ANDROID_SDK_REPO}/releases/tags/${ANDROID_SDK_RELEASE}`,

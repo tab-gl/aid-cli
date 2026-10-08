@@ -2,11 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const SDK_PACKAGE = "ace-id-sdk";
-const VANILLA_SDK_FILE = "ace-id-sdk.global.js";
-const VANILLA_SDK_VERSION = "0.1.2";
-const VANILLA_SDK_URL =
-  `https://unpkg.com/${SDK_PACKAGE}@${VANILLA_SDK_VERSION}/dist/${VANILLA_SDK_FILE}`;
-
 // Detection is intentionally scoped to process.cwd().
 // Never walk upward, inspect parent folders, or infer a project from an enclosing workspace.
 export async function detectProject() {
@@ -79,10 +74,8 @@ export async function detectProject() {
     type: "vanilla",
     label: "Vanilla JavaScript",
     sdk: SDK_PACKAGE,
-    sdkMode: "vanilla",
-    sdkUrl: VANILLA_SDK_URL,
-    sdkVersion: VANILLA_SDK_VERSION,
-    packageManager: null
+    sdkMode: "manual",
+    packageManager: detectPackageManager(files)
   };
 }
 

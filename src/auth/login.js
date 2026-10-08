@@ -4,7 +4,8 @@ import {
   ISSUER,
   CLIENT_ID,
   REDIRECT_URI,
-  SCOPES
+  SCOPES,
+  REQUEST_TIMEOUT_MS
 } from "./config.js";
 
 import {
@@ -60,7 +61,7 @@ export async function login() {
   let response;
 
   try {
-    response = await fetch(`${ISSUER}/token`, {
+    response = await fetchWithTimeout(`${ISSUER}/token`, {
       method: "POST",
       headers: {
         "content-type": "application/x-www-form-urlencoded"
@@ -80,13 +81,23 @@ export async function login() {
 
   if (!response.ok) {
     const text = await response.text();
-
+    const detail = text.length > 500 ? `${text.slice(0, 500)}…` : text;
     s.fail(`Token exchange failed (${response.status}).`);
-
-    throw new Error(text);
+    throw new Error(`Token exchange failed (${response.status}): ${detail}`);
   }
 
-  const body = await response.json();
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    s.fail("Token endpoint returned invalid JSON.");
+    throw new Error("Token endpoint returned invalid JSON. Run `aid login` again.");
+  }
+
+  if (typeof body?.access_token !== "string" || !body.access_token.trim()) {
+    s.fail("Token endpoint returned no access token.");
+    throw new Error("Token endpoint returned no access token.");
+  }
 
   await saveTokens({
     access_token: body.access_token,
@@ -107,12 +118,18 @@ function openBrowser(url) {
   let cmd;
   let args;
 
-  if (platform === "darwin") {
+  if (process.env.BROWSER) {
+    const browser = process.env.BROWSER.trim();
+    if (browser) {
+      cmd = browser;
+      args = [url];
+    }
+  } else if (platform === "darwin") {
     cmd = "open";
     args = [url];
   } else if (platform === "win32") {
-    cmd = "cmd";
-    args = ["/c", "start", "", url];
+    cmd = "explorer.exe";
+    args = [url];
   } else if (hasCommand("termux-open-url")) {
     cmd = "termux-open-url";
     args = [url];
@@ -135,4 +152,15 @@ function hasCommand(bin) {
     ? spawnSync("where", [bin], { stdio: "ignore" })
     : spawnSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" });
   return result.status === 0;
+}
+
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
