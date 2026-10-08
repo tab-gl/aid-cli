@@ -18,9 +18,15 @@ export async function saveTokens(tokens) {
   const normalized = validateTokens(tokens);
   await fs.mkdir(DIR, { recursive: true, mode: 0o700 });
 
-  const tmp = `${FILE}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(normalized, null, 2), { mode: 0o600 });
-  await fs.rename(tmp, FILE);
+  const tmp = `${FILE}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tmp, JSON.stringify(normalized, null, 2), { mode: 0o600 });
+    await fs.chmod(tmp, 0o600);
+    await fs.rename(tmp, FILE);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
 }
 
 export async function loadTokens() {
