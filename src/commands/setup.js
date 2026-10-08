@@ -20,6 +20,8 @@ const CONFIG_FILE = ".aid.json";
 const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
 const ANDROID_SDK_RELEASE = "1.1";
+const ANDROID_SDK_ASSET = "library-release.aar";
+const ANDROID_SDK_SHA256 = "8fde79fd7690f6b09c1198fec08ff160f5ecaf54301f14b88c4f43de90ebdba2";
 
 export async function setup() {
   if (!input.isTTY || !output.isTTY) {
@@ -287,21 +289,21 @@ async function installAndroidSdk(project) {
 
   if (!releaseResponse.ok) {
     throw new Error(
-      `Could not find the latest Android SDK release on GitHub (HTTP ${releaseResponse.status}).`
+      `Could not find Android SDK release ${ANDROID_SDK_RELEASE} on GitHub (HTTP ${releaseResponse.status}).`
     );
   }
 
   const release = await releaseResponse.json();
   const asset = release.assets?.find(
-    (item) => typeof item.name === "string" && item.name.toLowerCase().endsWith(".aar")
+    (item) => item.name === ANDROID_SDK_ASSET
   );
 
   if (!asset?.browser_download_url) {
     throw new Error(`Ace ID SDK release ${ANDROID_SDK_RELEASE} does not contain an .aar asset.`);
   }
 
-  if (!/^sha256:[a-f0-9]{64}$/i.test(asset.digest || "")) {
-    throw new Error(`Ace ID SDK release ${ANDROID_SDK_RELEASE} has no usable SHA-256 digest.`);
+  if (asset.digest !== `sha256:${ANDROID_SDK_SHA256}`) {
+    throw new Error(`Android SDK release ${ANDROID_SDK_RELEASE} digest does not match the pinned artifact.`);
   }
 
   const sdkDir = path.join(process.cwd(), "libs");
@@ -318,8 +320,7 @@ async function installAndroidSdk(project) {
 
   const buffer = Buffer.from(await response.arrayBuffer());
   const digest = crypto.createHash("sha256").update(buffer).digest("hex");
-  const expectedDigest = asset.digest.slice("sha256:".length).toLowerCase();
-  if (digest !== expectedDigest) {
+  if (digest !== ANDROID_SDK_SHA256) {
     throw new Error(`Android SDK integrity check failed for ${asset.name}. Installation was aborted.`);
   }
 
