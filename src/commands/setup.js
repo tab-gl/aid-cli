@@ -19,6 +19,7 @@ const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
 const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
+const ANDROID_SDK_RELEASE = "1.1";
 
 export async function setup() {
   if (!input.isTTY || !output.isTTY) {
@@ -158,7 +159,7 @@ export async function setup() {
       console.log(
         `  ${dim("NEXT")}
 
-    Downloaded the latest Ace ID Android AAR to ${project.sdkPath}.
+    Downloaded the pinned Ace ID Android AAR to ${project.sdkPath}.
     Add it to your app module dependencies.
 `
       );
@@ -166,7 +167,7 @@ export async function setup() {
       console.log(
         `  ${dim("NEXT")}
 
-    Android SDK setup was not completed. The latest AAR can be downloaded from the Ace ID SDK GitHub release.
+    Android SDK setup was not completed. The pinned AAR can be downloaded from the Ace ID SDK GitHub release.
 `
       );
     } else if (project.sdkMode === "vanilla" && sdkStatus === "installed") {
@@ -275,7 +276,7 @@ async function installVanillaSdk(project) {
 
 async function installAndroidSdk(project) {
   const releaseResponse = await fetch(
-    `https://api.github.com/repos/${ANDROID_SDK_REPO}/releases/latest`,
+    `https://api.github.com/repos/${ANDROID_SDK_REPO}/releases/tags/${ANDROID_SDK_RELEASE}`,
     {
       headers: {
         accept: "application/vnd.github+json",
@@ -296,7 +297,11 @@ async function installAndroidSdk(project) {
   );
 
   if (!asset?.browser_download_url) {
-    throw new Error("The latest Ace ID SDK release does not contain an .aar asset.");
+    throw new Error(`Ace ID SDK release ${ANDROID_SDK_RELEASE} does not contain an .aar asset.`);
+  }
+
+  if (!/^sha256:[a-f0-9]{64}$/i.test(asset.digest || "")) {
+    throw new Error(`Ace ID SDK release ${ANDROID_SDK_RELEASE} has no usable SHA-256 digest.`);
   }
 
   const sdkDir = path.join(process.cwd(), "libs");
@@ -312,6 +317,12 @@ async function installAndroidSdk(project) {
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
+  const digest = crypto.createHash("sha256").update(buffer).digest("hex");
+  const expectedDigest = asset.digest.slice("sha256:".length).toLowerCase();
+  if (digest !== expectedDigest) {
+    throw new Error(`Android SDK integrity check failed for ${asset.name}. Installation was aborted.`);
+  }
+
   await fs.writeFile(sdkPath, buffer);
 
   project.sdkPath = path.relative(process.cwd(), sdkPath);
