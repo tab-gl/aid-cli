@@ -18,7 +18,6 @@ import { detectProject } from "../project/detect.js";
 const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
 const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
-const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
 
 export async function setup() {
