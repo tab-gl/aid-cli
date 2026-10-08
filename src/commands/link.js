@@ -14,7 +14,7 @@ export async function link(args = []) {
   try {
     parsed = parseArgs({
       args,
-      options: { client: { type: "string" }, force: { type: "boolean", short: "f" } },
+      options: { client: { type: "string", short: "c" }, force: { type: "boolean", short: "f" } },
       strict: true,
       allowPositionals: true
     });
