@@ -45,21 +45,27 @@ export async function setup(args = []) {
   }
 
   if (await fileExists(configPath) && !values.force) {
-    success("Ace ID is already configured for this project.");
-    console.log(\`  \${dim("CONFIG")}  \${CONFIG_FILE}\`);
-    console.log(\`  \${dim("RE-RUN")}  aid setup --force\`);
-    return;
+    if (!interactive) {
+      success("Ace ID is already configured for this project.");
+      console.log(`  ${dim("CONFIG")}  ${CONFIG_FILE}`);
+      console.log(`  ${dim("RE-RUN")}  aid setup --force`);
+      return;
+    }
+    if (!(await confirm("An existing .aid.json was found. Replace its configuration? [y/N] "))) {
+      console.log("Setup cancelled.");
+      return;
+    }
   }
 
-  heading("SETUP");
-  console.log(\`\\n  \${dim("DETECTED")}  \${project.label}\${
-    project.sdk ? \`  •  \${project.sdk}\` : "  •  native SDK not installed"
-  }\\n\`);
+  heading(interactive ? "SETUP WIZARD" : "SETUP");
+  console.log(`\\n  ${dim("DETECTED")}  ${project.label}${
+    project.sdk ? `  •  ${project.sdk}` : "  •  native SDK not installed"
+  }\\n`);
 
   let tokens = await loadTokens();
   if (!tokens?.access_token) {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
-      throw new Error("Not signed in. Run \`aid login\` first.");
+      throw new Error("Not signed in. Run `aid login` first.");
     }
     await login();
     tokens = await loadTokens();
@@ -88,18 +94,12 @@ export async function setup(args = []) {
     });
   } catch (err) {
     try {
-      await apiFetch(\`/apps/\${encodeURIComponent(app.id)}\`, { method: "DELETE" });
+      await apiFetch(`/apps/${encodeURIComponent(app.id)}`, { method: "DELETE" });
     } catch {
-      warn(\`The client could not be created. App \${app.id} was not automatically removed.\`);
+      warn(`The client could not be created. App ${app.id} was not automatically removed.`);
     }
     throw err;
   }
-
-  await writeConfig(configPath, {
-    issuer: ISSUER, app_id: app.id, client_id: client.client_id,
-    redirect_uri: redirectUri, scopes: scopeList,
-    project_type: project.type, framework: project.label, sdk: project.sdk
-  });
 
   let sdkStatus = "not applicable";
   try {
@@ -109,7 +109,7 @@ export async function setup(args = []) {
       sdkStatus = await hasDependency(project.sdk) ? "already installed" : await installSdk(project);
     }
   } catch (err) {
-    warn(\`SDK setup skipped: \${err.message}\`);
+    warn(`SDK setup skipped: ${err.message}`);
     sdkStatus = "skipped";
   }
 
@@ -202,12 +202,28 @@ async function fileExists(file) {
 }
 
 async function writeConfig(file, config) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
-  await fs.chmod(tmp, 0o600);
-  await fs.rename(tmp, file);
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+    await fs.chmod(tmp, 0o600);
+    await fs.rename(tmp, file);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
 }
 
+async function writeAtomic(file, data, mode = 0o644) {
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    await fs.writeFile(tmp, data, { mode });
+    await fs.chmod(tmp, mode);
+    await fs.rename(tmp, file);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => {});
+    throw err;
+  }
+}
 async function installVanillaSdk(project) {
   const htmlCandidates = ["index.html", "public/index.html"];
   let htmlPath = null;
@@ -232,7 +248,7 @@ async function installVanillaSdk(project) {
     headers: { "user-agent": "ace-id-cli" }
   });
   if (!response.ok) {
-    throw new Error(`Failed to download the latest Vanilla SDK (HTTP ${response.status}).`);
+    throw new Error(`Failed to download the pinned Vanilla SDK (HTTP ${response.status}).`);
   }
 
   const source = Buffer.from(await response.arrayBuffer());
@@ -244,7 +260,7 @@ async function installVanillaSdk(project) {
   const sdkDir = path.join(process.cwd(), "vendor");
   const sdkPath = path.join(sdkDir, "ace-id-sdk.global.js");
   await fs.mkdir(sdkDir, { recursive: true });
-  await fs.writeFile(sdkPath, source);
+  await writeAtomic(sdkPath, source);
 
   const relative = path.relative(path.dirname(htmlPath), sdkPath).replaceAll(path.sep, "/");
   const script = `  <script src="${relative.startsWith(".") ? relative : "./" + relative}"></script>\n`;
@@ -252,7 +268,7 @@ async function installVanillaSdk(project) {
   if (head.test(html)) html = html.replace(head, (match) => `${match}\n${script}`);
   else html = `${script}${html}`;
 
-  await fs.writeFile(htmlPath, html, "utf8");
+  await writeAtomic(htmlPath, html, 0o644);
   project.sdkPath = path.relative(process.cwd(), sdkPath);
   project.sdkUrl = relative;
   return "installed";
@@ -306,7 +322,7 @@ async function installAndroidSdk(project) {
     throw new Error(`Android SDK integrity check failed for ${asset.name}. Installation was aborted.`);
   }
 
-  await fs.writeFile(sdkPath, buffer);
+  await writeAtomic(sdkPath, buffer);
 
   project.sdkPath = path.relative(process.cwd(), sdkPath);
   return "installed";
