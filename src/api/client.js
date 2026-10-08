@@ -21,19 +21,22 @@ export async function apiFetch(path, options = {}) {
     authorization: `Bearer ${accessToken}`
   };
 
+  let response;
   try {
-    const response = await fetchWithTimeout(url, { ...options, headers });
-    if (response.status === 401) {
-      await clearTokens().catch(() => {});
-      throw new Error("Server rejected the access token. Run `aid login` again.");
-    }
-    return response;
+    response = await fetchWithTimeout(url, { ...options, headers });
   } catch (err) {
     if (err.name === "AbortError") {
       throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
     }
     throw new Error(`Network request failed: ${err.message}`);
   }
+
+  if (response.status === 401) {
+    await clearTokens().catch(() => {});
+    throw new Error("Server rejected the access token. Run `aid login` again.");
+  }
+
+  return response;
 }
 
 export async function apiJson(path, options = {}) {
