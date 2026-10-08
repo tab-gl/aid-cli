@@ -3,12 +3,11 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import readline from "node:readline/promises";
-import { stdin as input, stdout as output } from "node:process";
+import { parseArgs } from "node:util";
 
 import { loadTokens } from "../auth/tokens.js";
 import { login } from "../auth/login.js";
-import { apiJson } from "../api/client.js";
+import { apiJson, apiFetch } from "../api/client.js";
 import { ISSUER, SCOPES } from "../auth/config.js";
 import { success, fields, warn, heading } from "../ui/format.js";
 import { dim } from "../ui/colors.js";
@@ -23,188 +22,93 @@ const ANDROID_SDK_RELEASE = "1.1";
 const ANDROID_SDK_ASSET = "library-release.aar";
 const ANDROID_SDK_SHA256 = "8fde79fd7690f6b09c1198fec08ff160f5ecaf54301f14b88c4f43de90ebdba2";
 
-export async function setup() {
-  if (!input.isTTY || !output.isTTY) {
-    throw new Error(
-      "Setup needs an interactive terminal. Run `npx ace-id` or `aid setup` from a terminal."
-    );
-  }
-
-  const rl = readline.createInterface({ input, output });
-
+export async function setup(args = []) {
+  let values;
   try {
-    showBanner();
-
-    const project = await detectProject();
-
-    heading("SETUP");
-
-    console.log(`
-
-  Create an Ace ID application and OAuth client for this project.
-  Existing CLI credentials are never overwritten.
-`);
-
-    console.log(
-      `  ${dim("DETECTED")}  ${project.label}${
-        project.sdk ? `  •  ${project.sdk}` : "  •  native SDK not installed"
-      }
-\n`
-    );
-
-    const configPath = path.join(process.cwd(), CONFIG_FILE);
-    if (await fileExists(configPath)) {
-      const overwrite = await confirm(
-        rl,
-        `${CONFIG_FILE} already exists. Replace it?`,
-        false
-      );
-
-      if (!overwrite) {
-        throw new Error(`Setup cancelled. Existing ${CONFIG_FILE} was kept.`);
-      }
-    }
-
-    let tokens = await loadTokens();
-
-    if (!tokens?.access_token) {
-      const shouldLogin = await confirm(
-        rl,
-        "You are not signed in. Sign in now?",
-        true
-      );
-
-      if (!shouldLogin) {
-        throw new Error("Setup cancelled. Run `aid login` first.");
-      }
-
-      await login();
-      tokens = await loadTokens();
-
-      if (!tokens?.access_token) {
-        throw new Error("Sign-in completed without a usable session.");
-      }
-    }
-
-    const projectName = await question(
-      rl,
-      "Project name",
-      await detectProjectName()
-    );
-
-    const redirectUri = await question(
-      rl,
-      "Redirect URI",
-      "http://localhost:3000/callback"
-    );
-
-    const scopes = await question(rl, "Scopes", SCOPES);
-    const scopeList = scopes.split(/\s+/).filter(Boolean);
-
-    const app = await apiJson("/apps", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: projectName })
-    });
-
-    const client = await apiJson("/clients", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: projectName,
-        redirect_uris: [redirectUri],
-        scopes: scopeList,
-        public: true
-      })
-    });
-
-    const config = {
-      issuer: ISSUER,
-      app_id: app.id,
-      client_id: client.client_id,
-      redirect_uri: redirectUri,
-      scopes: scopeList,
-      project_type: project.type,
-      framework: project.label,
-      sdk: project.sdk
-    };
-
-    await writeConfig(configPath, config);
-
-    let sdkStatus = "not applicable";
-    if (project.sdkMode === "android") {
-      sdkStatus = await installAndroidSdk(project);
-    } else if (project.sdkMode === "vanilla") {
-      sdkStatus = await installVanillaSdk(project);
-    } else if (project.sdk && project.sdkMode === "build") {
-      if (await hasDependency(project.sdk)) {
-        sdkStatus = "already installed";
-      } else {
-        sdkStatus = await installSdk(project);
-      }
-    }
-
-    success("Ace ID project configured.");
-
-    fields([
-      ["Project", project.label],
-      ["Application ID", app.id],
-      ["Client ID", client.client_id],
-      ["Redirect URI", redirectUri],
-      ["SDK", project.sdk || "none"],
-      ["SDK status", sdkStatus],
-      ...(project.sdkPath ? [["SDK path", project.sdkPath]] : []),
-      ["Config", CONFIG_FILE]
-    ]);
-
-    if (project.sdkMode === "android" && sdkStatus === "installed") {
-      console.log(
-        `  ${dim("NEXT")}
-
-    Downloaded the pinned Ace ID Android AAR to ${project.sdkPath}.
-    Add it to your app module dependencies.
-`
-      );
-    } else if (project.sdkMode === "android") {
-      console.log(
-        `  ${dim("NEXT")}
-
-    Android SDK setup was not completed. The pinned AAR can be downloaded from the Ace ID SDK GitHub release.
-`
-      );
-    } else if (project.sdkMode === "vanilla" && sdkStatus === "installed") {
-      console.log(
-        `  ${dim("NEXT")}\n\n    Installed the Vanilla browser SDK at ${project.sdkPath}.
-    It is loaded automatically by your index.html. Use the global \`AceID\` API.
-`
-      );
-    } else if (project.sdkMode === "vanilla") {
-      console.log(
-        `  ${dim("NEXT")}\n\n    The Vanilla browser SDK was not installed automatically.
-`
-      );
-    } else if (project.sdk && project.sdkMode === "build" && sdkStatus === "installed") {
-      console.log(
-        `  ${dim("NEXT")}
-
-    The ${project.sdk} package is installed.
-    Use the values in ${CONFIG_FILE} to initialize Ace ID.
-`
-      );
-    } else if (project.sdk && project.sdkMode === "build") {
-      console.log(
-        `  ${dim("NEXT")}
-
-    Install the SDK manually if needed:
-    ${packageInstallCommand(project.packageManager, project.sdk)}
-
-    Then initialize it with the values in ${CONFIG_FILE}.
-`
-      );
-    }
-  } finally {
-    rl.close();
+    ({ values } = parseArgs({ args, options: {
+      name: { type: "string" }, redirect: { type: "string" },
+      scope: { type: "string" }, force: { type: "boolean", short: "f" }
+    }, strict: true }));
+  } catch {
+    throw new Error("Usage: aid setup [--name <name>] [--redirect <uri>] [--scope <scope...>] [--force]");
   }
+
+  showBanner();
+  const project = await detectProject();
+  const configPath = path.join(process.cwd(), CONFIG_FILE);
+
+  if (await fileExists(configPath) && !values.force) {
+    success("Ace ID is already configured for this project.");
+    console.log(\`  \${dim("CONFIG")}  \${CONFIG_FILE}\`);
+    console.log(\`  \${dim("RE-RUN")}  aid setup --force\`);
+    return;
+  }
+
+  heading("SETUP");
+  console.log(\`\\n  \${dim("DETECTED")}  \${project.label}\${
+    project.sdk ? \`  •  \${project.sdk}\` : "  •  native SDK not installed"
+  }\\n\`);
+
+  let tokens = await loadTokens();
+  if (!tokens?.access_token) {
+    if (!process.stdout.isTTY || !process.stdin.isTTY) {
+      throw new Error("Not signed in. Run \`aid login\` first.");
+    }
+    await login();
+    tokens = await loadTokens();
+    if (!tokens?.access_token) throw new Error("Sign-in completed without a usable session.");
+  }
+
+  const projectName = values.name?.trim() || await detectProjectName();
+  const redirectUri = values.redirect?.trim() || "http://localhost:3000/callback";
+  const scopeList = (values.scope?.trim() || SCOPES).split(/\s+/).filter(Boolean);
+
+  const app = await apiJson("/apps", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: projectName })
+  });
+
+  let client;
+  try {
+    client = await apiJson("/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: projectName, redirect_uris: [redirectUri], scopes: scopeList, public: true })
+    });
+  } catch (err) {
+    try {
+      await apiFetch(\`/apps/\${encodeURIComponent(app.id)}\`, { method: "DELETE" });
+    } catch {
+      warn(\`The client could not be created. App \${app.id} was not automatically removed.\`);
+    }
+    throw err;
+  }
+
+  await writeConfig(configPath, {
+    issuer: ISSUER, app_id: app.id, client_id: client.client_id,
+    redirect_uri: redirectUri, scopes: scopeList,
+    project_type: project.type, framework: project.label, sdk: project.sdk
+  });
+
+  let sdkStatus = "not applicable";
+  try {
+    if (project.sdkMode === "android") sdkStatus = await installAndroidSdk(project);
+    else if (project.sdkMode === "vanilla") sdkStatus = await installVanillaSdk(project);
+    else if (project.sdk && project.sdkMode === "build") {
+      sdkStatus = await hasDependency(project.sdk) ? "already installed" : await installSdk(project);
+    }
+  } catch (err) {
+    warn(\`SDK setup skipped: \${err.message}\`);
+    sdkStatus = "skipped";
+  }
+
+  success("Ace ID project configured.");
+  fields([
+    ["Project", project.label], ["Application ID", app.id], ["Client ID", client.client_id],
+    ["Redirect URI", redirectUri], ["SDK", project.sdk || "none"], ["SDK status", sdkStatus],
+    ...(project.sdkPath ? [["SDK path", project.sdkPath]] : []), ["Config", CONFIG_FILE]
+  ]);
 }
 
 async function fileExists(file) {
@@ -218,12 +122,10 @@ async function fileExists(file) {
 }
 
 async function writeConfig(file, config) {
-  await fs.writeFile(
-    file,
-    JSON.stringify(config, null, 2) + "\n",
-    { mode: 0o600 }
-  );
-  await fs.chmod(file, 0o600);
+  const tmp = `${file}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+  await fs.chmod(tmp, 0o600);
+  await fs.rename(tmp, file);
 }
 
 async function installVanillaSdk(project) {
@@ -383,36 +285,4 @@ function packageInstallCommand(manager, packageName) {
     default:
       return `npm install ${packageName}`;
   }
-}
-
-async function question(rl, label, fallback) {
-  const value = (await rl.question(`  ? ${label} [${fallback}]: `)).trim();
-  return value || fallback;
-}
-
-async function confirm(rl, label, fallback) {
-  const suffix = fallback ? "Y/n" : "y/N";
-  const value = (await rl.question(`  ? ${label} [${suffix}]: `))
-    .trim()
-    .toLowerCase();
-
-  if (!value) return fallback;
-  return value === "y" || value === "yes";
-}
-
-async function detectProjectName() {
-  try {
-    const raw = await fs.readFile(
-      path.join(process.cwd(), "package.json"),
-      "utf8"
-    );
-    const pkg = JSON.parse(raw);
-    if (typeof pkg.name === "string" && pkg.name.trim()) {
-      return pkg.name.trim();
-    }
-  } catch {
-    // Fall back to the directory name.
-  }
-
-  return path.basename(process.cwd()) || "My App";
 }
