@@ -13,11 +13,22 @@ import { dim } from "../src/ui/colors.js";
 import { showBanner } from "../src/ui/banner.js";
 import { withScreen } from "../src/ui/screen.js";
 
-const [, , rawCommand, ...args] = process.argv;
-const normalized = normalizeCommand(rawCommand, args);
-const command = normalized.command;
-const commandArgs = normalized.args;
+const [, , ...argv] = process.argv;
 const commands = { setup, login, logout, whoami, apps, clients, link, sync };
+const chains = splitCommandChain(argv);
+
+if (chains.length > 1) {
+  try {
+    for (const chain of chains) await runCommand(chain);
+    process.exit(0);
+  } catch (err) {
+    failure(err.message);
+    process.exit(1);
+  }
+}
+
+const [rawCommand, ...args] = chains[0] ?? [];
+await runCommand([rawCommand, ...args]);
 
 if (!command || command === "help" || command === "--help" || command === "-h") {
   await withScreen(async () => { showBanner(); printHelp(); });
@@ -35,8 +46,42 @@ if (!commands[command]) {
   process.exit(1);
 }
 
-try { await commands[command](commandArgs); }
-catch (err) { failure(err.message); process.exit(1); }
+async function runCommand(argv) {
+  const [rawCommand, ...args] = argv;
+  const normalized = normalizeCommand(rawCommand, args);
+  const command = normalized.command;
+  const commandArgs = normalized.args;
+
+  if (!command || command === "help" || command === "--help" || command === "-h") {
+    await withScreen(async () => { showBanner(); printHelp(); });
+    return;
+  }
+
+  if (command === "version" || command === "-v" || command === "--version") {
+    await withScreen(async () => { showBanner(); });
+    return;
+  }
+
+  if (!commands[command]) throw new Error(`Unknown command: ${command}`);
+  await commands[command](commandArgs);
+}
+
+function splitCommandChain(argv) {
+  const chains = [];
+  let current = [];
+
+  for (const token of argv) {
+    if (token === ";") {
+      if (current.length) chains.push(current);
+      current = [];
+    } else {
+      current.push(token);
+    }
+  }
+
+  if (current.length) chains.push(current);
+  return chains.length ? chains : [[]];
+}
 
 function printHelp() {
   console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n`);
@@ -82,6 +127,11 @@ function printHelp() {
   commandList([["--help, -h", "Show help"], ["--version, -v", "Show CLI version"], ["help", "Show help"], ["version", "Show CLI version"]]);
   console.log(`\n  ${dim("ALIASES")}`);
   commandList([["aid", "Canonical command"], ["ace-id", "Compatibility alias"], ["aidc", "Compatibility alias"], ["app", "Compatibility alias for apps"]]);
+  console.log(`\n  ${dim("COMMAND CHAINING")}`);
+  commandList([
+    ["aid apps list ; apps get <id>", "Run commands sequentially"],
+    ["aid login ; apps list", "Stop immediately if a command fails"]
+  ]);
   console.log(`\n  ${dim("SUPPORT")}`);
   commandList([["Docs", "https://docs.ace-base.cc"], ["Support", "https://bsky.app/profile/ace-base.cc"]]);
 }
