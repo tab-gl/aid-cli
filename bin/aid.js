@@ -12,7 +12,8 @@ import { commandList } from "../src/ui/format.js";
 import { showBanner } from "../src/ui/banner.js";
 import { withScreen } from "../src/ui/screen.js";
 
-const [, , command, ...args] = process.argv;
+const [, , rawCommand, ...args] = process.argv;
+const command = rawCommand === "init" ? "setup" : rawCommand;
 
 const commands = { setup, login, logout, whoami, apps, clients };
 
@@ -25,7 +26,7 @@ if (!command || command === "help" || command === "--help") {
   process.exit(0);
 }
 
-if (command === "-v" || command === "--version") {
+if (command === "version" || command === "-v" || command === "--version") {
   await withScreen(async () => {
     showBanner();
   });
@@ -50,6 +51,7 @@ function printHelp() {
   console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n`);
   commandList([
     ["setup", "Set up an Ace ID project"],
+    ["init", "Alias for setup"],
     ["login", "Sign in via Ace ID"],
     ["logout", "Sign out"],
     ["whoami", "Show signed-in account"],
