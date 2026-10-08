@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { randomUUID } from "node:crypto";
 
 import { apiJson } from "../api/client.js";
 import { ISSUER } from "../auth/config.js";
@@ -22,7 +23,8 @@ export async function link(args = []) {
     throw new Error("Usage: aid link <app_id> [--client <client_id>] [--force]");
   }
 
-  const [appId] = parsed.positionals;
+  const [appId, ...extra] = parsed.positionals;
+  if (extra.length) throw new Error("Usage: aid link <app_id> [--client <client_id>] [--force]");
   if (!appId) throw new Error("Usage: aid link <app_id> [--client <client_id>] [--force]");
 
   const app = await apiJson(`/apps/${encodeURIComponent(appId)}`);
@@ -67,7 +69,7 @@ async function fileExists(file) {
 }
 
 async function writeConfig(file, config) {
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
     await fs.chmod(tmp, 0o600);
