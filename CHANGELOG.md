@@ -2,6 +2,21 @@
 
 All notable changes to the Ace ID CLI are documented here.
 
+## [0.1.4]
+
+### Added
+- `apps` is the canonical application-management command; `app` remains a compatibility alias.
+- Smart application command normalization: `list`, `create`, `get`, `update`, and `delete` route to `apps` when used at the top level.
+- Canonical `link <app_id>` command to bind an existing remote application to the current folder and create `.aid.json`.
+- `sync` command to refresh an existing local application link or switch it to a specified application.
+- Optional `--client <client_id>` support when linking a project.
+- Explicit `--force` protection for replacing an existing `.aid.json` link.
+- Version bumped to `0.1.4`.
+
+### Safety
+- Linking and syncing never create remote applications or clients implicitly.
+- Existing `.aid.json` is preserved unless `--force` is explicitly supplied.
+
 ## [0.1.3]
 
 ### Audit fixes
@@ -9,7 +24,6 @@ All notable changes to the Ace ID CLI are documented here.
 - Fixed `dim()` so muted labels actually use the muted palette instead of the primary foreground.
 - Fixed screen clearing so `aid` preserves terminal scrollback instead of issuing `3J` and erasing it.
 - Added request timeouts to automatic Android SDK release and artifact downloads.
-
 
 - Complete `--help` command/flag reference, including setup, apps, clients, aliases, and short flags.
 
@@ -50,5 +64,6 @@ All notable changes to the Ace ID CLI are documented here.
 - Atomic token and project configuration writes.
 - Hash verification for the automatic Android SDK artifact.
 
+[0.1.4]: https://github.com/aceyash-dev/aid-cli/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/aceyash-dev/aid-cli/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/aceyash-dev/aid-cli/releases/tag/v0.1.2

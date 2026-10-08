@@ -28,7 +28,7 @@ ace-id
 aidc
 ```
 
-`aid` is canonical. `ace-id` and `aidc` are compatibility aliases for scripts and existing projects.
+`aid` is canonical. `ace-id` and `aidc` are compatibility aliases for scripts and existing projects. `apps` is the canonical application command; `app` remains a compatibility alias.
 
 ## Quick start
 
@@ -143,6 +143,74 @@ Package-manager detection supports:
 - Bun
 
 The CLI is designed to work across Windows, macOS, Linux, WSL, and terminal environments such as Termux, provided Node.js 18+ is available.
+
+## Multiple applications and smart command routing
+
+A single CLI session can manage any number of Ace ID applications. Remote application management is account-wide, while each local project can link to the application it uses.
+
+`apps` is canonical:
+
+```sh
+aid apps list
+aid apps create --name "Web"
+aid apps get <app-id>
+aid apps update <app-id> --name "Web Production"
+aid apps delete <app-id>
+aid link <app-id>
+aid sync
+```
+
+`app` is accepted for compatibility:
+
+```sh
+aid app list
+```
+
+Common application actions also have smart shorthand routing. These are normalized to the canonical `apps` command:
+
+```sh
+aid list
+aid create --name "Web"
+aid get <app-id>
+aid update <app-id> --name "Web Production"
+aid delete <app-id>
+```
+
+For example, `aid delete <app-id>` executes as `aid apps delete <app-id>`. This is command normalization, not shell-level text rewriting, so it works consistently across terminals.
+
+## Link and sync
+
+Use `link` to bind an existing Ace ID application to the current local folder and create `.aid.json`:
+
+```sh
+aid link <app-id>
+```
+
+Optionally record a specific OAuth client:
+
+```sh
+aid link <app-id> --client <client-id>
+```
+
+If `.aid.json` already exists, linking refuses to overwrite it unless you explicitly use:
+
+```sh
+aid link <app-id> --force
+```
+
+`sync` refreshes the application recorded in the current folder:
+
+```sh
+aid sync
+```
+
+You can also switch the current folder to another application:
+
+```sh
+aid sync <app-id>
+```
+
+`link` and `sync` do not silently create remote applications or clients. They only validate/read the existing application and maintain the local link.
 
 ## Commands
 

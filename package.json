@@ -1,6 +1,6 @@
 {
   "name": "ace-id",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Ace Identity Console — CLI for AIDC applications and OAuth clients",
   "type": "module",
   "bin": {
