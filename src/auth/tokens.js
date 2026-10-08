@@ -29,7 +29,7 @@ export async function loadTokens() {
     return validateTokens(JSON.parse(raw));
   } catch (err) {
     if (err.code === "ENOENT") return null;
-    if (err instanceof Error && err.message === "INVALID_TOKEN_DATA") {
+    if (err instanceof SyntaxError || (err instanceof Error && err.message === "INVALID_TOKEN_DATA")) {
       throw new Error("Stored Ace ID session is invalid. Run `aid login` again.");
     }
     throw err;

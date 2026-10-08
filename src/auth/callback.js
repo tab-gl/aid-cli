@@ -109,10 +109,16 @@ function successHtml() {
 }
 
 function failureHtml(message) {
+  const safeMessage = escapeHtml(String(message).slice(0, 200));
   return `<!doctype html><html><head><meta charset="utf-8">
 <title>Sign-in failed</title>
 <style>body{font-family:-apple-system,system-ui,sans-serif;max-width:420px;margin:20vh auto;padding:24px;color:#111;background:#f5f5f2;text-align:center}h1{font-size:24px;margin:0 0 12px}p{color:#666;line-height:1.6}</style>
-</head><body><h1>${message}</h1>
+</head><body><h1>${safeMessage}</h1>
 <p>Return to your terminal for details.</p>
 </body></html>`;
+}
+
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
