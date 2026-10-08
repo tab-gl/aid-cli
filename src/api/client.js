@@ -19,7 +19,11 @@ export async function apiFetch(path, options = {}) {
     ...(options.headers || {}),
     authorization: `Bearer ${accessToken}`
   };
-  return fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401) {
+    throw new Error("Server rejected the access token. Run `aid login` again.");
+  }
+  return response;
 }
 
 export async function apiJson(path, options = {}) {
