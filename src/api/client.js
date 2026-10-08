@@ -1,4 +1,4 @@
-import { ISSUER } from "../auth/config.js";
+import { ISSUER, REQUEST_TIMEOUT_MS } from "../auth/config.js";
 import { getValidAccessToken } from "../auth/refresh.js";
 
 const ISSUER_URL = new URL(ISSUER);
@@ -19,11 +19,15 @@ export async function apiFetch(path, options = {}) {
     ...(options.headers || {}),
     authorization: `Bearer ${accessToken}`
   };
-  const response = await fetch(url, { ...options, headers });
-  if (response.status === 401) {
-    throw new Error("Server rejected the access token. Run `aid login` again.");
+
+  try {
+    return await fetchWithTimeout(url, { ...options, headers });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
+    throw new Error(`Network request failed: ${err.message}`);
   }
-  return response;
 }
 
 export async function apiJson(path, options = {}) {
@@ -33,5 +37,20 @@ export async function apiJson(path, options = {}) {
     const detail = text.length > 500 ? `${text.slice(0, 500)}…` : text;
     throw new Error(`Request failed (${response.status}): ${detail}`);
   }
-  return response.json();
+
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`Request succeeded but returned invalid JSON (HTTP ${response.status}).`);
+  }
+}
+
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
