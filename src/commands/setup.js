@@ -58,9 +58,9 @@ export async function setup(args = []) {
   }
 
   heading(interactive ? "SETUP WIZARD" : "SETUP");
-  console.log(`\\n  ${dim("DETECTED")}  ${project.label}${
+  console.log(`\n  ${dim("DETECTED")}  ${project.label}${
     project.sdk ? `  •  ${project.sdk}` : "  •  native SDK not installed"
-  }\\n`);
+  }\n`);
 
   let tokens = await loadTokens();
   if (!tokens?.access_token) {
