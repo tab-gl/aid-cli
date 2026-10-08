@@ -131,8 +131,8 @@ function openBrowser(url) {
 }
 
 function hasCommand(bin) {
-  const result = spawnSync("sh", ["-c", `command -v ${bin}`], {
-    stdio: "ignore"
-  });
+  const result = process.platform === "win32"
+    ? spawnSync("where", [bin], { stdio: "ignore" })
+    : spawnSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" });
   return result.status === 0;
 }
