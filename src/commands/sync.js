@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { apiJson } from "../api/client.js";
 import { success, fields } from "../ui/format.js";
 import { link } from "./link.js";
@@ -7,7 +8,8 @@ import { link } from "./link.js";
 const CONFIG_FILE = ".aid.json";
 
 export async function sync(args = []) {
-  const [appId] = args;
+  const [appId, ...extra] = args;
+  if (extra.length) throw new Error("Usage: aid sync [<app_id>]");
   const configPath = path.join(process.cwd(), CONFIG_FILE);
 
   if (appId) { await link([appId, "--force"]); return; }
@@ -22,7 +24,7 @@ export async function sync(args = []) {
   if (!app?.id) throw new Error("The linked app could not be loaded.");
 
   const next = { ...config, app_id: app.id };
-  const tmp = `${configPath}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${configPath}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmp, JSON.stringify(next, null, 2) + "\n", { mode: 0o600 });
     await fs.chmod(tmp, 0o600);
