@@ -15,42 +15,17 @@ import { withScreen } from "../src/ui/screen.js";
 
 const [, , ...argv] = process.argv;
 const commands = { setup, login, logout, whoami, apps, clients, link, sync };
-const chains = splitCommandChain(argv);
 
-if (chains.length > 1) {
-  try {
-    for (const chain of chains) await runCommand(chain);
-    process.exit(0);
-  } catch (err) {
-    failure(err.message);
-    process.exit(1);
-  }
-}
-
-const [rawCommand, ...args] = chains[0] ?? [];
-await runCommand([rawCommand, ...args]);
-
-if (!command || command === "help" || command === "--help" || command === "-h") {
-  await withScreen(async () => { showBanner(); printHelp(); });
-  process.exit(0);
-}
-
-if (command === "version" || command === "-v" || command === "--version") {
-  await withScreen(async () => { showBanner(); });
-  process.exit(0);
-}
-
-if (!commands[command]) {
-  failure(`Unknown command: ${command}`);
-  printHelp();
+try {
+  for (const chain of splitCommandChain(argv)) await runCommand(chain);
+} catch (err) {
+  failure(err.message);
   process.exit(1);
 }
 
 async function runCommand(argv) {
-  const [rawCommand, ...args] = argv;
-  const normalized = normalizeCommand(rawCommand, args);
-  const command = normalized.command;
-  const commandArgs = normalized.args;
+  const [rawCommand, ...rawArgs] = argv;
+  const { command, args } = normalizeCommand(rawCommand, rawArgs);
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     await withScreen(async () => { showBanner(); printHelp(); });
@@ -63,7 +38,7 @@ async function runCommand(argv) {
   }
 
   if (!commands[command]) throw new Error(`Unknown command: ${command}`);
-  await commands[command](commandArgs);
+  await commands[command](args);
 }
 
 function splitCommandChain(argv) {
@@ -71,20 +46,37 @@ function splitCommandChain(argv) {
   let current = [];
 
   for (const token of argv) {
-    if (token === ";") {
-      if (current.length) chains.push(current);
+    if (token === ";" || token === ";;" || token === "\\;") {
+      if (current.length) chains.push(stripCliPrefix(current));
       current = [];
-    } else {
-      current.push(token);
+      continue;
     }
+    current.push(token);
   }
 
-  if (current.length) chains.push(current);
+  if (current.length) chains.push(stripCliPrefix(current));
   return chains.length ? chains : [[]];
 }
 
+function stripCliPrefix(argv) {
+  return ["aid", "ace-id", "aidc"].includes(argv[0]) ? argv.slice(1) : argv;
+}
+
+function normalizeCommand(rawCommand, rawArgs) {
+  if (rawCommand === "init") return { command: "setup", args: rawArgs };
+  if (rawCommand === "app") return { command: "apps", args: rawArgs };
+
+  const shorthand = new Set(["list", "create", "get", "update", "delete"]);
+  if (shorthand.has(rawCommand)) {
+    const args = rawArgs[0] === "app" ? rawArgs.slice(1) : rawArgs;
+    return { command: "apps", args: [rawCommand, ...args] };
+  }
+
+  return { command: rawCommand, args: rawArgs };
+}
+
 function printHelp() {
-  console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n`);
+  console.log(`  ${dim("USAGE")}\\n\\n    aid <command> [options]\\n    aid <command> [options] \\; aid <command> [options]\\n`);
   console.log(`  ${dim("COMMANDS")}`);
   commandList([
     ["setup", "Set up an Ace ID project"], ["init", "Alias for setup"],
@@ -94,52 +86,39 @@ function printHelp() {
     ["sync", "Refresh the linked application in this folder"],
     ["clients", "Manage OAuth clients"], ["version", "Show CLI version"], ["help", "Show this message"]
   ]);
-  console.log(`\n  ${dim("SETUP OPTIONS")}`);
+  console.log(`\\n  ${dim("SHORT FLAGS")}`);
   commandList([
-    ["--interactive, -i", "Run the interactive setup wizard"], ["--wizard", "Alias for --interactive"],
-    ["--name <name>", "Application/project name"], ["--redirect <uri>", "OAuth redirect URI"],
-    ["--scope <scope>...", "OAuth scope; repeat for multiple scopes"], ["--force, -f", "Replace an existing .aid.json"]
+    ["-i", "Alias for --interactive / --id by command"], ["-n", "Alias for --name"],
+    ["-r", "Alias for --redirect"], ["-s", "Alias for --scope"],
+    ["-d", "Alias for --description"], ["-c", "Alias for --client"],
+    ["-p", "Alias for --public"], ["-f", "Alias for --force"], ["-v", "Alias for --version"]
   ]);
-  console.log(`\n  ${dim("APPS SUBCOMMANDS")}`);
+  console.log(`\\n  ${dim("APPS SUBCOMMANDS")}`);
   commandList([
     ["apps list", "List applications"], ["apps create --name <name>", "Create an application"],
     ["apps get <id>", "Show an application"], ["apps update <id> --name <name>", "Update application name"],
-    ["apps delete <id>", "Delete an application"], ["app <subcommand>", "Compatibility alias for apps"]
+    ["apps delete <id>", "Delete an application"], ["app <subcommand>", "Compatibility alias for apps"],
+    ["create app ...", "Compatibility shorthand for apps create ..."]
   ]);
-  console.log(`\n  ${dim("PROJECT LINKING")}`);
+  console.log(`\\n  ${dim("PROJECT LINKING")}`);
   commandList([
     ["link <app_id>", "Link an existing app to the current folder"],
     ["link <app_id> --client <client_id>", "Link an app and record an OAuth client"],
     ["sync", "Refresh the app recorded in .aid.json"], ["sync <app_id>", "Replace the current link with an app"]
   ]);
-  console.log(`\n  ${dim("SMART APP SHORTHANDS")}`);
-  commandList([
-    ["list", "→ apps list"], ["create ...", "→ apps create ..."], ["get <id>", "→ apps get <id>"],
-    ["update <id> ...", "→ apps update <id> ..."], ["delete <id>", "→ apps delete <id>"]
-  ]);
-  console.log(`\n  ${dim("CLIENTS SUBCOMMANDS")}`);
+  console.log(`\\n  ${dim("CLIENTS SUBCOMMANDS")}`);
   commandList([
     ["clients list", "List OAuth clients"], ["clients create --name <name> --redirect <uri>", "Create a client"],
     ["clients get <client_id>", "Show a client"], ["clients delete <client_id>", "Delete a client"],
     ["clients rotate-secret <client_id>", "Rotate a client secret"]
   ]);
-  console.log(`\n  ${dim("HELP / VERSION FLAGS")}`);
-  commandList([["--help, -h", "Show help"], ["--version, -v", "Show CLI version"], ["help", "Show help"], ["version", "Show CLI version"]]);
-  console.log(`\n  ${dim("ALIASES")}`);
-  commandList([["aid", "Canonical command"], ["ace-id", "Compatibility alias"], ["aidc", "Compatibility alias"], ["app", "Compatibility alias for apps"]]);
-  console.log(`\n  ${dim("COMMAND CHAINING")}`);
+  console.log(`\\n  ${dim("COMMAND CHAINING")}`);
   commandList([
-    ["aid apps list ; apps get <id>", "Run commands sequentially"],
-    ["aid login ; apps list", "Stop immediately if a command fails"]
+    ["aid setup -i \\; aid create app -n my-app", "Run full commands sequentially"],
+    ["aid login \\; aid apps list", "Stop immediately if a command fails"]
   ]);
-  console.log(`\n  ${dim("SUPPORT")}`);
+  console.log(`\\n  ${dim("ALIASES")}`);
+  commandList([["aid", "Canonical command"], ["ace-id", "Compatibility alias"], ["aidc", "Compatibility alias"], ["app", "Compatibility alias for apps"]]);
+  console.log(`\\n  ${dim("SUPPORT")}`);
   commandList([["Docs", "https://docs.ace-base.cc"], ["Support", "https://bsky.app/profile/ace-base.cc"]]);
-}
-
-function normalizeCommand(rawCommand, rawArgs) {
-  if (rawCommand === "init") return { command: "setup", args: rawArgs };
-  if (rawCommand === "app") return { command: "apps", args: rawArgs };
-  const shorthand = new Set(["list", "create", "get", "update", "delete"]);
-  if (shorthand.has(rawCommand)) return { command: "apps", args: [rawCommand, ...rawArgs] };
-  return { command: rawCommand, args: rawArgs };
 }
