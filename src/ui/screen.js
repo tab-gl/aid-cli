@@ -29,12 +29,10 @@ export function clear() {
   /*
    *  H    home cursor
    *  2J   clear visible screen (scrollback preserved)
-   *  3J   clear scrollback too (may be ignored on some terminals)
    */
   if (colorsEnabled) out(`${ESC}[48;2;0;0;0m${ESC}[38;2;242;242;242m`);
   out(`${ESC}[H`);
   out(`${ESC}[2J`);
-  out(`${ESC}[3J`);
 }
 
 export function hideCursor() {
@@ -48,7 +46,7 @@ export function showCursor() {
 }
 
 /*
- * Clear visible screen + scrollback, then
+ * Clear the visible screen, then
  * print a banner/help block. No alt buffer.
  *
  * Scrolling after this shows the shell history
