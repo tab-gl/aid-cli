@@ -15,7 +15,7 @@ export async function create(args) {
     });
   } catch {
     throw new Error(
-      "Usage: aidc apps create --name <name> [--description <text>]"
+      "Usage: aid apps create --name <name> [--description <text>]"
     );
   }
 
