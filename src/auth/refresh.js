@@ -9,7 +9,7 @@ export async function getValidAccessToken() {
   const tokens = await loadTokens();
 
   if (!tokens?.access_token) {
-    throw new Error("Not signed in. Run `aidc login` first.");
+    throw new Error("Not signed in. Run `aid login` first.");
   }
 
   if (!isExpiringSoon(tokens)) {
@@ -19,7 +19,7 @@ export async function getValidAccessToken() {
   if (!tokens.refresh_token) {
     throw new Error(
       "Session expired and no refresh token is stored. " +
-      "Run `aidc login` again."
+      "Run `aid login` again."
     );
   }
 
@@ -46,7 +46,7 @@ async function refresh(tokens) {
     if (response.status === 400) {
       throw new Error(
         "Refresh failed — your session has expired. " +
-        "Run `aidc login` again."
+        "Run `aid login` again."
       );
     }
 
