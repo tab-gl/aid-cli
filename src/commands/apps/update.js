@@ -9,8 +9,8 @@ export async function update(args) {
   let parsed;
   try {
     parsed = parseArgs({ args: rest, options: {
-      name: { type: "string" },
-      description: { type: "string" }
+      name: { type: "string", short: "n" },
+      description: { type: "string", short: "d" }
     }});
   } catch {
     throw new Error("Usage: aid apps update <id> [--name <name>] [--description <text>]");

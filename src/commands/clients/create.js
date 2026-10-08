@@ -9,11 +9,11 @@ export async function create(args) {
     parsed = parseArgs({
       args,
       options: {
-        name:     { type: "string" },
-        redirect: { type: "string", multiple: true },
-        scope:    { type: "string", multiple: true },
-        id:       { type: "string" },
-        public:   { type: "boolean" }
+        name:     { type: "string", short: "n" },
+        redirect: { type: "string", short: "r", multiple: true },
+        scope:    { type: "string", short: "s", multiple: true },
+        id:       { type: "string", short: "i" },
+        public:   { type: "boolean", short: "p" }
       }
     });
   } catch {
