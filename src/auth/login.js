@@ -118,12 +118,18 @@ function openBrowser(url) {
   let cmd;
   let args;
 
-  if (platform === "darwin") {
+  if (process.env.BROWSER) {
+    const browser = process.env.BROWSER.trim();
+    if (browser) {
+      cmd = browser;
+      args = [url];
+    }
+  } else if (platform === "darwin") {
     cmd = "open";
     args = [url];
   } else if (platform === "win32") {
-    cmd = "cmd";
-    args = ["/c", "start", "", url];
+    cmd = "explorer.exe";
+    args = [url];
   } else if (hasCommand("termux-open-url")) {
     cmd = "termux-open-url";
     args = [url];
