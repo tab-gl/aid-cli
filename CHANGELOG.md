@@ -2,7 +2,7 @@
 
 All notable changes to the Ace ID CLI are documented here.
 
-## [Unreleased]
+## [0.1.3]
 
 ### Added
 - Version-agnostic JavaScript SDK detection.
@@ -41,5 +41,5 @@ All notable changes to the Ace ID CLI are documented here.
 - Atomic token and project configuration writes.
 - Hash verification for the automatic Android SDK artifact.
 
-[Unreleased]: https://github.com/aceyash-dev/aid-cli/compare/v0.1.2...HEAD
+[0.1.3]: https://github.com/aceyash-dev/aid-cli/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/aceyash-dev/aid-cli/releases/tag/v0.1.2
