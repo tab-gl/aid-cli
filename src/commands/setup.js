@@ -17,7 +17,6 @@ import { detectProject } from "../project/detect.js";
 
 const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
-const VANILLA_SDK_SHA256 = process.env.ACE_ID_VANILLA_SDK_SHA256 || "";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
 const ANDROID_SDK_RELEASE = "1.1";
 const ANDROID_SDK_ASSET = "library-release.aar";
@@ -104,7 +103,6 @@ export async function setup(args = []) {
   let sdkStatus = "not applicable";
   try {
     if (project.sdkMode === "android") sdkStatus = await installAndroidSdk(project);
-    else if (project.sdkMode === "vanilla") sdkStatus = await installVanillaSdk(project);
     else if (project.sdk && project.sdkMode === "build") {
       sdkStatus = await hasDependency(project.sdk) ? "already installed" : await installSdk(project);
     }
