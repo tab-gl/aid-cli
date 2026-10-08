@@ -25,7 +25,7 @@ Run `aid` with no arguments for the full command list.
 
 ## Project setup
 
-Initialize a project with zero unnecessary prompts:
+Fast setup uses sensible defaults with no wizard prompts:
 
 ```sh
 npx ace-id init
@@ -38,17 +38,25 @@ npm install -g ace-id
 ace-id init
 ```
 
-The same setup flow is available from both CLI names:
+The same setup flow is available from all CLI aliases:
 
 ```sh
 aid setup
+ace-id setup
 aidc setup
 ```
 
-`aid` is canonical. `aidc` remains a legacy compatibility alias.
+For the interactive wizard:
 
+```sh
+aid setup --interactive
+# or
+ace-id setup --wizard
+```
 
-The canonical command is `aid`. The old `aidc` command remains available as a compatibility alias for existing scripts and developer workflows.
+The wizard lets you review or change the project name, redirect URI, and scopes before anything is created.
+
+`aid` is canonical. `ace-id` and `aidc` remain compatibility aliases, and all three share the same command behavior.
 
 Requirements
 
