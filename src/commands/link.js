@@ -35,7 +35,7 @@ export async function link(args = []) {
 
   const project = await detectProject();
   const existing = await readConfig(configPath);
-  const config = {
+  // Keep the local link deterministic: remote app identity is the source of truth.\n  const config = {
     issuer: ISSUER,
     app_id: app.id,
     ...(parsed.values.client ? { client_id: parsed.values.client } : existing?.client_id ? { client_id: existing.client_id } : {}),
