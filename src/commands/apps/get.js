@@ -5,7 +5,7 @@ export async function get(args) {
   const [id] = args;
 
   if (!id) {
-    throw new Error("Usage: aidc apps get <id>");
+    throw new Error("Usage: aid apps get <id>");
   }
 
   const app = await apiJson(`/apps/${encodeURIComponent(id)}`);
