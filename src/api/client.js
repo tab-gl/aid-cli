@@ -13,8 +13,8 @@ function resolveApiUrl(path) {
 }
 
 export async function apiFetch(path, options = {}) {
-  const accessToken = await getValidAccessToken();
   const url = resolveApiUrl(path);
+  const accessToken = await getValidAccessToken();
   const headers = {
     ...(options.headers || {}),
     authorization: `Bearer ${accessToken}`
