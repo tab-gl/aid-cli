@@ -4,6 +4,13 @@ All notable changes to the Ace ID CLI are documented here.
 
 ## [0.1.3]
 
+### Audit fixes
+- Added the neutral near-white terminal text hierarchy: `#FAFAFA`, `#F4F4F5`, `#E4E4E7`, `#D4D4D8`, `#A1A1AA`, `#71717A`, with `#FFFFFF` reserved for emphasis.
+- Fixed `dim()` so muted labels actually use the muted palette instead of the primary foreground.
+- Fixed screen clearing so `aid` preserves terminal scrollback instead of issuing `3J` and erasing it.
+- Added request timeouts to automatic Android SDK release and artifact downloads.
+
+
 - Complete `--help` command/flag reference, including setup, apps, clients, aliases, and short flags.
 
 ### Added
