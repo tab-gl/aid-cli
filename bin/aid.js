@@ -6,6 +6,8 @@ import { whoami } from "../src/commands/whoami.js";
 import { apps } from "../src/commands/apps/index.js";
 import { clients } from "../src/commands/clients/index.js";
 import { setup } from "../src/commands/setup.js";
+import { link } from "../src/commands/link.js";
+import { sync } from "../src/commands/sync.js";
 import { failure } from "../src/ui/format.js";
 import { dim } from "../src/ui/colors.js";
 import { commandList } from "../src/ui/format.js";
@@ -13,9 +15,11 @@ import { showBanner } from "../src/ui/banner.js";
 import { withScreen } from "../src/ui/screen.js";
 
 const [, , rawCommand, ...args] = process.argv;
-const command = rawCommand === "init" ? "setup" : rawCommand;
+const normalized = normalizeCommand(rawCommand, args);
+const command = normalized.command;
+const commandArgs = normalized.args;
 
-const commands = { setup, login, logout, whoami, apps, clients };
+const commands = { setup, login, logout, whoami, apps, clients, link, sync };
 
 if (!command || command === "help" || command === "--help" || command === "-h") {
   await withScreen(async () => {
@@ -41,7 +45,7 @@ if (!commands[command]) {
 }
 
 try {
-  await commands[command](args);
+  await commands[command](commandArgs);
 } catch (err) {
   failure(err.message);
   process.exit(1);
@@ -58,6 +62,8 @@ function printHelp() {
     ["logout", "Sign out"],
     ["whoami", "Show signed-in account"],
     ["apps", "Manage applications"],
+    ["link", "Link an application to this folder and write .aid.json"],
+    ["sync", "Refresh the linked application in this folder"],
     ["clients", "Manage OAuth clients"],
     ["version", "Show CLI version"],
     ["help", "Show this message"]
@@ -81,10 +87,11 @@ function printHelp() {
     ["apps get <id>", "Show an application"],
     ["apps update <id> --name <name>", "Update application name"],
     ["apps update <id> --description <text>", "Update application description"],
-    ["apps delete <id>", "Delete an application"]
+    ["apps delete <id>", "Delete an application"],
+    ["app <subcommand>", "Compatibility alias for apps"]
   ]);
 
-  console.log(`\n  ${dim("CLIENTS SUBCOMMANDS")}`);
+  console.log(`\n  ${dim("PROJECT LINKING")}`);\n  commandList([\n    ["link <app_id>", "Link an existing app to the current folder"],\n    ["link <app_id> --client <client_id>", "Link an app and record an OAuth client"],\n    ["sync", "Refresh the app recorded in .aid.json"],\n    ["sync <app_id>", "Replace the current link with an app"]\n  ]);\n\n  console.log(`\n  ${dim("CLIENTS SUBCOMMANDS")}`);
   commandList([
     ["clients list", "List OAuth clients"],
     ["clients create --name <name> --redirect <uri>", "Create a client"],
@@ -117,4 +124,16 @@ function printHelp() {
     ["Docs", "https://docs.ace-base.cc"],
     ["Support", "https://bsky.app/profile/ace-base.cc"]
   ]);
+}
+
+function normalizeCommand(rawCommand, rawArgs) {
+  if (rawCommand === "init") return { command: "setup", args: rawArgs };
+  if (rawCommand === "app") return { command: "apps", args: rawArgs };
+
+  const shorthand = new Set(["list", "create", "get", "update", "delete"]);
+  if (shorthand.has(rawCommand)) {
+    return { command: "apps", args: [rawCommand, ...rawArgs] };
+  }
+
+  return { command: rawCommand, args: rawArgs };
 }
