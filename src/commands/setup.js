@@ -70,6 +70,19 @@ export async function setup() {
       }
     }
 
+    const configPath = path.join(process.cwd(), CONFIG_FILE);
+    if (await fileExists(configPath)) {
+      const overwrite = await confirm(
+        rl,
+        `${CONFIG_FILE} already exists. Replace it?`,
+        false
+      );
+
+      if (!overwrite) {
+        throw new Error(`Setup cancelled. Existing ${CONFIG_FILE} was kept.`);
+      }
+    }
+
     const projectName = await question(
       rl,
       "Project name",
@@ -113,25 +126,7 @@ export async function setup() {
       sdk: project.sdk
     };
 
-    const configPath = path.join(process.cwd(), CONFIG_FILE);
-
-    try {
-      await fs.access(configPath);
-      const overwrite = await confirm(
-        rl,
-        `${CONFIG_FILE} already exists. Replace it?`,
-        false
-      );
-
-      if (!overwrite) {
-        warn(`Created the remote resources, but kept the existing ${CONFIG_FILE}.`);
-      } else {
-        await writeConfig(configPath, config);
-      }
-    } catch (err) {
-      if (err.code !== "ENOENT") throw err;
-      await writeConfig(configPath, config);
-    }
+    await writeConfig(configPath, config);
 
     let sdkStatus = "not applicable";
     if (project.sdkMode === "android") {
@@ -206,6 +201,16 @@ export async function setup() {
     }
   } finally {
     rl.close();
+  }
+}
+
+async function fileExists(file) {
+  try {
+    await fs.access(file);
+    return true;
+  } catch (err) {
+    if (err.code === "ENOENT") return false;
+    throw err;
   }
 }
 
