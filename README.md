@@ -8,42 +8,42 @@ It manages Ace ID applications and OAuth clients, handles OIDC authentication, a
 
 Requires **Node.js 18+**.
 
-\`\`\`sh
+```sh
 npm install -g ace-id
-\`\`\`
+```
 
 Run without installing globally:
 
-\`\`\`sh
+```sh
 npx ace-id --help
-\`\`\`
+```
 
 ### Command aliases
 
 All three names use the same CLI:
 
-\`\`\`text
+```text
 aid
 ace-id
 aidc
-\`\`\`
+```
 
-\`aid\` is canonical. \`ace-id\` and \`aidc\` are compatibility aliases for scripts and existing projects.
+`aid` is canonical. `ace-id` and `aidc` are compatibility aliases for scripts and existing projects.
 
 ## Quick start
 
-\`\`\`sh
+```sh
 aid login
 aid setup
-\`\`\`
+```
 
-\`aid setup\` is intentionally fast and uses sensible defaults. It does not force a wizard on you.
+`aid setup` is intentionally fast and uses sensible defaults. It does not force a wizard on you.
 
 For a guided flow:
 
-\`\`\`sh
+```sh
 aid setup --interactive
-\`\`\`
+```
 
 The interactive wizard lets you review:
 
@@ -51,38 +51,38 @@ The interactive wizard lets you review:
 - Redirect URI
 - OAuth scopes
 
-It also asks before replacing an existing \`.aid.json\`.
+It also asks before replacing an existing `.aid.json`.
 
 ### Setup options
 
-\`\`\`sh
+```sh
 aid setup [--interactive] [--name <name>] [--redirect <uri>] [--scope <scope>...] [--force]
-\`\`\`
+```
 
 Examples:
 
-\`\`\`sh
+```sh
 aid setup
 aid setup --interactive
 aid setup --name "My App" --redirect http://localhost:3000/callback
 aid setup --scope openid --scope profile --scope email
-\`\`\`
+```
 
 ## Authentication
 
 Login uses **OpenID Connect Authorization Code + PKCE (S256)**.
 
-\`\`\`sh
+```sh
 aid login
 aid whoami
 aid logout
-\`\`\`
+```
 
 The CLI:
 
 - Generates a fresh PKCE verifier/challenge for every login.
 - Uses a cryptographically random state value and validates it on callback.
-- Binds the local callback server to \`127.0.0.1\`.
+- Binds the local callback server to `127.0.0.1`.
 - Stores tokens in the platform configuration directory with restrictive permissions where supported.
 - Refreshes expiring sessions automatically.
 - Deduplicates concurrent refresh requests so multiple CLI operations do not race to rotate a refresh token.
@@ -92,7 +92,7 @@ The CLI:
 
 Environment overrides:
 
-\`\`\`sh
+```sh
 AIDC_ISSUER=https://identity.ace-base.cc
 AIDC_CLIENT_ID=aidc-cli
 AIDC_PORT=7357
@@ -100,9 +100,9 @@ AIDC_SCOPES="openid profile email offline_access"
 AIDC_CALLBACK_TIMEOUT_MS=300000
 AIDC_REFRESH_LEEWAY_MS=60000
 AIDC_REQUEST_TIMEOUT_MS=15000
-\`\`\`
+```
 
-\`AIDC_ISSUER\` must use HTTPS unless it points to localhost.
+`AIDC_ISSUER` must use HTTPS unless it points to localhost.
 
 ## SDK compatibility
 
@@ -112,9 +112,9 @@ It does not require the CLI version to match your Ace ID SDK version. Existing S
 
 For JavaScript projects, the CLI targets the package:
 
-\`\`\`text
+```text
 ace-id-sdk
-\`\`\`
+```
 
 It does not pin the CLI to a specific JavaScript SDK release.
 
@@ -146,7 +146,7 @@ The CLI is designed to work across Windows, macOS, Linux, WSL, and terminal envi
 
 ## Commands
 
-\`\`\`sh
+```sh
 aid setup
 aid login
 aid logout
@@ -162,15 +162,15 @@ aid clients delete <client-id>
 
 aid version
 aid help
-\`\`\`
+```
 
 ## Configuration
 
 Project configuration is stored in:
 
-\`\`\`text
+```text
 .aid.json
-\`\`\`
+```
 
 Do not commit this file if your workflow treats its identifiers or local configuration as sensitive. The CLI writes it with restrictive permissions where the operating system supports them.
 
@@ -195,30 +195,30 @@ The CLI is designed around a few simple rules:
 
 If authentication is stale:
 
-\`\`\`sh
+```sh
 aid logout
 aid login
-\`\`\`
+```
 
 If a project needs to be reconfigured:
 
-\`\`\`sh
+```sh
 aid setup --force
-\`\`\`
+```
 
-If browser launch is unavailable, \`aid login\` prints the authorization URL so it can be opened manually.
+If browser launch is unavailable, `aid login` prints the authorization URL so it can be opened manually.
 
 For CI or headless environments, authenticate using the supported non-interactive authentication flow provided by your Ace ID deployment rather than trying to fake a browser session.
 
 ## Development
 
-\`\`\`sh
+```sh
 npm install
 node bin/aid.js --help
 npm pack --dry-run
-\`\`\`
+```
 
-CI also syntax-checks every JavaScript file under \`bin/\` and \`src/\`.
+CI also syntax-checks every JavaScript file under `bin/` and `src/`.
 
 ## Changelog
 
