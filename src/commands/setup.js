@@ -26,9 +26,9 @@ export async function setup(args = []) {
   let values;
   try {
     ({ values } = parseArgs({ args, options: {
-      name: { type: "string" }, redirect: { type: "string" },
-      scope: { type: "string", multiple: true }, force: { type: "boolean", short: "f" },
-      interactive: { type: "boolean", short: "i" }, wizard: { type: "boolean" }
+      name: { type: "string", short: "n" }, redirect: { type: "string", short: "r" },
+      scope: { type: "string", short: "s", multiple: true }, force: { type: "boolean", short: "f" },
+      interactive: { type: "boolean", short: "i" }, wizard: { type: "boolean", short: "w" }
     }, strict: true }));
   } catch {
     throw new Error("Usage: aid setup [--interactive] [--name <name>] [--redirect <uri>] [--scope <scope>...] [--force]");
