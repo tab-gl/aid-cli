@@ -50,7 +50,7 @@ try {
 function printHelp() {
   console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n`);
   commandList([
-    ["setup", "Set up an Ace ID project"],
+    ["setup [--interactive]", "Set up an Ace ID project (fast or interactive)"],
     ["init", "Alias for setup"],
     ["login", "Sign in via Ace ID"],
     ["logout", "Sign out"],
