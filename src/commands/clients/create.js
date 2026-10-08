@@ -18,7 +18,7 @@ export async function create(args) {
     });
   } catch {
     throw new Error(
-      "Usage: aidc clients create --name <name> --redirect <uri> " +
+      "Usage: aid clients create --name <name> --redirect <uri> " +
       "[--redirect <uri>...] [--scope <s>...] [--id <id>] [--public]"
     );
   }
