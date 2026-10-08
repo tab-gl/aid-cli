@@ -49,6 +49,19 @@ export async function setup() {
 \n`
     );
 
+    const configPath = path.join(process.cwd(), CONFIG_FILE);
+    if (await fileExists(configPath)) {
+      const overwrite = await confirm(
+        rl,
+        `${CONFIG_FILE} already exists. Replace it?`,
+        false
+      );
+
+      if (!overwrite) {
+        throw new Error(`Setup cancelled. Existing ${CONFIG_FILE} was kept.`);
+      }
+    }
+
     let tokens = await loadTokens();
 
     if (!tokens?.access_token) {
@@ -67,19 +80,6 @@ export async function setup() {
 
       if (!tokens?.access_token) {
         throw new Error("Sign-in completed without a usable session.");
-      }
-    }
-
-    const configPath = path.join(process.cwd(), CONFIG_FILE);
-    if (await fileExists(configPath)) {
-      const overwrite = await confirm(
-        rl,
-        `${CONFIG_FILE} already exists. Replace it?`,
-        false
-      );
-
-      if (!overwrite) {
-        throw new Error(`Setup cancelled. Existing ${CONFIG_FILE} was kept.`);
       }
     }
 
