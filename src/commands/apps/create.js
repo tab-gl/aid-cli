@@ -9,8 +9,8 @@ export async function create(args) {
     parsed = parseArgs({
       args,
       options: {
-        name:        { type: "string" },
-        description: { type: "string" }
+        name:        { type: "string", short: "n" },
+        description: { type: "string", short: "d" }
       }
     });
   } catch {
