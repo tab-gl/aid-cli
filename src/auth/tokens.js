@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { randomUUID } from "node:crypto";
 
 import { REFRESH_LEEWAY_MS } from "./config.js";
 
@@ -18,7 +19,7 @@ export async function saveTokens(tokens) {
   const normalized = validateTokens(tokens);
   await fs.mkdir(DIR, { recursive: true, mode: 0o700 });
 
-  const tmp = `${FILE}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${FILE}.${process.pid}.${randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmp, JSON.stringify(normalized, null, 2), { mode: 0o600 });
     await fs.chmod(tmp, 0o600);
