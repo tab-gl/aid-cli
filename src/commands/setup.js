@@ -9,7 +9,7 @@ import { createInterface } from "node:readline/promises";
 import { loadTokens } from "../auth/tokens.js";
 import { login } from "../auth/login.js";
 import { apiJson, apiFetch } from "../api/client.js";
-import { ISSUER, SCOPES } from "../auth/config.js";
+import { ISSUER, SCOPES, REQUEST_TIMEOUT_MS } from "../auth/config.js";
 import { success, fields, warn, heading } from "../ui/format.js";
 import { dim } from "../ui/colors.js";
 import { showBanner } from "../ui/banner.js";
@@ -223,7 +223,7 @@ async function writeAtomic(file, data, mode = 0o644) {
   }
 }
 async function installAndroidSdk(project) {
-  const releaseResponse = await fetch(
+  const releaseResponse = await fetchWithTimeout(
     `https://api.github.com/repos/${ANDROID_SDK_REPO}/releases/tags/${ANDROID_SDK_RELEASE}`,
     {
       headers: {
@@ -256,7 +256,7 @@ async function installAndroidSdk(project) {
   const sdkPath = path.join(sdkDir, asset.name);
   await fs.mkdir(sdkDir, { recursive: true });
 
-  const response = await fetch(asset.browser_download_url, {
+  const response = await fetchWithTimeout(asset.browser_download_url, {
     headers: { "user-agent": "ace-id-cli" }
   });
 
@@ -327,5 +327,20 @@ function packageInstallCommand(manager, packageName) {
       return { executable: "bun", args: ["add", packageName] };
     default:
       return { executable: "npm", args: ["install", packageName] };
+  }
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error(`SDK download request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
+    throw new Error(`SDK download request failed: ${err.message}`);
+  } finally {
+    clearTimeout(timer);
   }
 }
