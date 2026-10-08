@@ -220,6 +220,7 @@ async function writeConfig(file, config) {
     JSON.stringify(config, null, 2) + "\n",
     { mode: 0o600 }
   );
+  await fs.chmod(file, 0o600);
 }
 
 async function installVanillaSdk(project) {
