@@ -99,6 +99,7 @@ export async function login() {
     throw new Error("Token endpoint returned no access token.");
   }
 
+  const expiresIn = Number(body.expires_in ?? 3600);
   await saveTokens({
     access_token: body.access_token,
     refresh_token: body.refresh_token,
@@ -106,7 +107,7 @@ export async function login() {
     token_type: body.token_type || "Bearer",
     scope: body.scope,
     expires_at:
-      Date.now() + (body.expires_in ?? 3600) * 1000
+      Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600) * 1000
   });
 
   s.succeed("Signed in. Tokens stored.");
