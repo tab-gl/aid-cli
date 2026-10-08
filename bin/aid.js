@@ -27,7 +27,7 @@ async function runCommand(argv) {
   const [rawCommand, ...rawArgs] = argv;
   const { command, args } = normalizeCommand(rawCommand, rawArgs);
 
-  if (!command || command === "help" || command === "--help" || command === "-h") {
+  if (!command || command === "help" || command === "h" || command === "--help" || command === "-h") {
     await withScreen(async () => { showBanner(); printHelp(); });
     return;
   }
@@ -88,7 +88,7 @@ function printHelp() {
   ]);
   console.log(`\\n  ${dim("SHORT FLAGS")}`);
   commandList([
-    ["-i", "Alias for --interactive / --id by command"], ["-n", "Alias for --name"],
+    ["-h", "Alias for --help"], ["-i", "Alias for --interactive / --id by command"], ["-n", "Alias for --name"],
     ["-r", "Alias for --redirect"], ["-s", "Alias for --scope"],
     ["-d", "Alias for --description"], ["-c", "Alias for --client"],
     ["-p", "Alias for --public"], ["-f", "Alias for --force"], ["-v", "Alias for --version"]
@@ -97,7 +97,7 @@ function printHelp() {
   commandList([
     ["apps list", "List applications"], ["apps create --name <name>", "Create an application"],
     ["apps get <id>", "Show an application"], ["apps update <id> --name <name>", "Update application name"],
-    ["apps delete <id>", "Delete an application"], ["app <subcommand>", "Compatibility alias for apps"],
+    ["apps delete <id>...", "Delete one or more applications"], ["app <subcommand>", "Compatibility alias for apps"],
     ["create app ...", "Compatibility shorthand for apps create ..."]
   ]);
   console.log(`\\n  ${dim("PROJECT LINKING")}`);
