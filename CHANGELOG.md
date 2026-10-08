@@ -4,6 +4,8 @@ All notable changes to the Ace ID CLI are documented here.
 
 ## [0.1.3]
 
+- Complete `--help` command/flag reference, including setup, apps, clients, aliases, and short flags.
+
 ### Added
 - Version-agnostic JavaScript SDK detection.
 - Explicit interactive setup mode with `aid setup --interactive`.
