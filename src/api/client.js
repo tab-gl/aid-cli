@@ -1,5 +1,6 @@
 import { ISSUER, REQUEST_TIMEOUT_MS } from "../auth/config.js";
 import { getValidAccessToken } from "../auth/refresh.js";
+import { clearTokens } from "../auth/tokens.js";
 
 const ISSUER_URL = new URL(ISSUER);
 const ISSUER_ORIGIN = ISSUER_URL.origin;
@@ -21,7 +22,12 @@ export async function apiFetch(path, options = {}) {
   };
 
   try {
-    return await fetchWithTimeout(url, { ...options, headers });
+    const response = await fetchWithTimeout(url, { ...options, headers });
+    if (response.status === 401) {
+      await clearTokens().catch(() => {});
+      throw new Error("Server rejected the access token. Run `aid login` again.");
+    }
+    return response;
   } catch (err) {
     if (err.name === "AbortError") {
       throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
