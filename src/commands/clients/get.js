@@ -5,7 +5,7 @@ export async function get(args) {
   const [id] = args;
 
   if (!id) {
-    throw new Error("Usage: aidc clients get <client_id>");
+    throw new Error("Usage: aid clients get <client_id>");
   }
 
   const c = await apiJson(`/clients/${encodeURIComponent(id)}`);
