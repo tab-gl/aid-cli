@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { parseArgs } from "node:util";
+import { createInterface } from "node:readline/promises";
 
 import { loadTokens } from "../auth/tokens.js";
 import { login } from "../auth/login.js";
@@ -27,15 +28,21 @@ export async function setup(args = []) {
   try {
     ({ values } = parseArgs({ args, options: {
       name: { type: "string" }, redirect: { type: "string" },
-      scope: { type: "string" }, force: { type: "boolean", short: "f" }
+      scope: { type: "string", multiple: true }, force: { type: "boolean", short: "f" },
+      interactive: { type: "boolean", short: "i" }, wizard: { type: "boolean" }
     }, strict: true }));
   } catch {
-    throw new Error("Usage: aid setup [--name <name>] [--redirect <uri>] [--scope <scope...>] [--force]");
+    throw new Error("Usage: aid setup [--interactive] [--name <name>] [--redirect <uri>] [--scope <scope>...] [--force]");
   }
 
   showBanner();
   const project = await detectProject();
   const configPath = path.join(process.cwd(), CONFIG_FILE);
+  const interactive = Boolean(values.interactive || values.wizard);
+
+  if (interactive && (!process.stdin.isTTY || !process.stdout.isTTY)) {
+    throw new Error("Interactive setup requires a terminal. Use `aid setup` for the fast non-interactive flow.");
+  }
 
   if (await fileExists(configPath) && !values.force) {
     success("Ace ID is already configured for this project.");
@@ -59,14 +66,17 @@ export async function setup(args = []) {
     if (!tokens?.access_token) throw new Error("Sign-in completed without a usable session.");
   }
 
-  const projectName = values.name?.trim() || await detectProjectName();
-  const redirectUri = values.redirect?.trim() || "http://localhost:3000/callback";
-  const scopeList = (values.scope?.trim() || SCOPES).split(/\s+/).filter(Boolean);
+  const defaults = {
+    name: values.name?.trim() || await detectProjectName(),
+    redirect: values.redirect?.trim() || "http://localhost:3000/callback",
+    scopes: normalizeScopes(values.scope?.flat() || SCOPES)
+  };
+  const settings = interactive ? await collectWizardValues(defaults) : defaults;
 
   const app = await apiJson("/apps", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: projectName })
+    body: JSON.stringify({ name: settings.name })
   });
 
   let client;
@@ -74,7 +84,7 @@ export async function setup(args = []) {
     client = await apiJson("/clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: projectName, redirect_uris: [redirectUri], scopes: scopeList, public: true })
+      body: JSON.stringify({ name: settings.name, redirect_uris: [settings.redirect], scopes: settings.scopes, public: true })
     });
   } catch (err) {
     try {
@@ -103,14 +113,84 @@ export async function setup(args = []) {
     sdkStatus = "skipped";
   }
 
+  try {
+    await writeConfig(configPath, {
+      issuer: ISSUER, app_id: app.id, client_id: client.client_id,
+      redirect_uri: settings.redirect, scopes: settings.scopes,
+      project_type: project.type, framework: project.label, sdk: project.sdk,
+      sdk_path: project.sdkPath, sdk_version: project.sdkVersion
+    });
+  } catch (err) {
+    await cleanupRemoteResources(app?.id, client?.client_id);
+    throw new Error(`Could not write ${CONFIG_FILE}: ${err.message}`);
+  }
+
   success("Ace ID project configured.");
   fields([
     ["Project", project.label], ["Application ID", app.id], ["Client ID", client.client_id],
-    ["Redirect URI", redirectUri], ["SDK", project.sdk || "none"], ["SDK status", sdkStatus],
+    ["Redirect URI", settings.redirect], ["Scopes", settings.scopes.join(" ")], ["SDK", project.sdk || "none"], ["SDK status", sdkStatus],
     ...(project.sdkPath ? [["SDK path", project.sdkPath]] : []), ["Config", CONFIG_FILE]
   ]);
 }
 
+async function collectWizardValues(defaults) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const name = await prompt(rl, "Project name", defaults.name);
+    const redirect = await prompt(rl, "Redirect URI", defaults.redirect);
+    const scopes = await prompt(rl, "Scopes (space-separated)", defaults.scopes.join(" "));
+    if (!name.trim()) throw new Error("Project name cannot be empty.");
+    if (!redirect.trim()) throw new Error("Redirect URI cannot be empty.");
+    return { name: name.trim(), redirect: redirect.trim(), scopes: normalizeScopes(scopes) };
+  } finally {
+    rl.close();
+  }
+}
+
+async function prompt(rl, label, fallback) {
+  const answer = await rl.question(`  ${label} [${fallback}]: `);
+  return answer.trim() || fallback;
+}
+
+async function confirm(message) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await rl.question(message);
+    return /^(y|yes)$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
+}
+
+function normalizeScopes(scopes) {
+  const list = Array.isArray(scopes) ? scopes : String(scopes).split(/\s+/);
+  return [...new Set(list.flatMap((value) => String(value).split(/\s+/)).map((value) => value.trim()).filter(Boolean))];
+}
+
+async function cleanupRemoteResources(appId, clientId) {
+  if (clientId) {
+    try {
+      await apiFetch(`/clients/${encodeURIComponent(clientId)}`, { method: "DELETE" });
+    } catch {
+      warn(`Client ${clientId} could not be cleaned up automatically.`);
+    }
+  }
+  if (appId) {
+    try {
+      await apiFetch(`/apps/${encodeURIComponent(appId)}`, { method: "DELETE" });
+    } catch {
+      warn(`App ${appId} could not be cleaned up automatically.`);
+    }
+  }
+}
+
+async function detectProjectName() {
+  try {
+    const pkg = JSON.parse(await fs.readFile(path.join(process.cwd(), "package.json"), "utf8"));
+    if (typeof pkg.name === "string" && pkg.name.trim()) return pkg.name.trim();
+  } catch {}
+  return path.basename(process.cwd()) || "Ace ID App";
+}
 async function fileExists(file) {
   try {
     await fs.access(file);
@@ -251,8 +331,7 @@ async function hasDependency(name) {
 }
 
 async function installSdk(project) {
-  const command = packageInstallCommand(project.packageManager, project.sdk);
-  const [executable, ...args] = command.split(" ");
+  const { executable, args } = packageInstallCommand(project.packageManager, project.sdk);
 
   try {
     const result = await execFileAsync(executableForPlatform(executable), args, {
@@ -277,12 +356,12 @@ function executableForPlatform(executable) {
 function packageInstallCommand(manager, packageName) {
   switch (manager) {
     case "pnpm":
-      return `pnpm add ${packageName}`;
+      return { executable: "pnpm", args: ["add", packageName] };
     case "yarn":
-      return `yarn add ${packageName}`;
+      return { executable: "yarn", args: ["add", packageName] };
     case "bun":
-      return `bun add ${packageName}`;
+      return { executable: "bun", args: ["add", packageName] };
     default:
-      return `npm install ${packageName}`;
+      return { executable: "npm", args: ["install", packageName] };
   }
 }
