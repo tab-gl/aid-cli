@@ -15,7 +15,7 @@ export async function link(args = []) {
     parsed = parseArgs({
       args,
       options: { client: { type: "string" }, force: { type: "boolean", short: "f" } },
-      strict: true
+      strict: true,\n      allowPositionals: true
     });
   } catch {
     throw new Error("Usage: aid link <app_id> [--client <client_id>] [--force]");
