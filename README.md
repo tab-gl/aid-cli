@@ -25,7 +25,7 @@ Run `aid` with no arguments for the full command list.
 
 ## Project setup
 
-Initialize a project with the interactive setup wizard:
+Initialize a project with zero unnecessary prompts:
 
 ```sh
 npx ace-id init
