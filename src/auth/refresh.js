@@ -1,29 +1,36 @@
 import { ISSUER, CLIENT_ID, REQUEST_TIMEOUT_MS } from "./config.js";
 import {
   loadTokens,
-  saveTokens,
+  saveTokensUnlocked,
   isExpiringSoon,
-  clearTokens
+  clearTokensUnlocked,
+  withTokenLock
 } from "./tokens.js";
+import { readApiError } from "../api/errors.js";
 
 let refreshPromise = null;
 
 export async function getValidAccessToken() {
   const tokens = await loadTokens();
-
   if (!tokens?.access_token) {
     throw new Error("Not signed in. Run `aid login` first.");
   }
-
   if (!isExpiringSoon(tokens)) return tokens.access_token;
 
-  if (!tokens.refresh_token) {
-    await clearTokens();
-    throw new Error("Session expired and no refresh token is stored. Run `aid login` again.");
-  }
-
   if (!refreshPromise) {
-    refreshPromise = refresh(tokens).finally(() => {
+    refreshPromise = withTokenLock(async () => {
+      // A different CLI process may have refreshed while this process waited.
+      const latest = await loadTokens();
+      if (!latest?.access_token) {
+        throw new Error("Not signed in. Run `aid login` first.");
+      }
+      if (!isExpiringSoon(latest)) return latest;
+      if (!latest.refresh_token) {
+        await clearTokensUnlocked();
+        throw new Error("Session expired and no refresh token is stored. Run `aid login` again.");
+      }
+      return refresh(latest);
+    }).finally(() => {
       refreshPromise = null;
     });
   }
@@ -53,9 +60,9 @@ async function refresh(tokens) {
   }
 
   if (!response.ok) {
-    const detail = await readError(response);
+    const detail = await readApiError(response);
     if (response.status === 400 || response.status === 401) {
-      await clearTokens();
+      await clearTokensUnlocked();
       throw new Error("Refresh failed because the session is no longer valid. Run `aid login` again.");
     }
     throw new Error(`Token refresh failed (${response.status}): ${detail}`);
@@ -64,7 +71,10 @@ async function refresh(tokens) {
   let body;
   try {
     body = await response.json();
-  } catch {
+  } catch (err) {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
+      throw new Error(`Token refresh response timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
     throw new Error("Token refresh returned invalid JSON. Run `aid login` again.");
   }
 
@@ -82,16 +92,10 @@ async function refresh(tokens) {
     expires_at: Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600) * 1000
   };
 
-  await saveTokens(updated);
+  await saveTokensUnlocked(updated);
   return updated;
 }
 
 async function fetchWithTimeout(url, options) {
-  // AbortSignal.timeout remains active while fetch response bodies are read.
   return fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-}
-
-async function readError(response) {
-  const text = await response.text();
-  return text.length > 500 ? `${text.slice(0, 500)}…` : text;
 }
