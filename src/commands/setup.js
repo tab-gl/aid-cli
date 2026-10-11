@@ -44,6 +44,9 @@ export async function setup(args = []) {
     await recoverSetup(configPath, recoveryPath, Boolean(values.force));
     return;
   }
+  if (await fileExists(recoveryPath)) {
+    throw new Error("An interrupted setup recovery record exists. Run `aid setup --recover` before starting another setup.");
+  }
   const interactive = Boolean(values.interactive || values.wizard);
 
   if (interactive && (!process.stdin.isTTY || !process.stdout.isTTY)) {
