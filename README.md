@@ -45,7 +45,7 @@ For a guided flow:
 aid setup --interactive
 ```
 
-The interactive wizard lets you review the project name, redirect URI, and OAuth scopes. It also asks before replacing an existing `.aid.json`.
+The interactive wizard shows a seven-step progress display for project detection, authentication, options, remote application/client creation, SDK setup, and local config. It lets you review the project name, redirect URI, and OAuth scopes, and asks before replacing an existing `.aid.json`.
 
 ### Setup options
 
@@ -149,7 +149,7 @@ aid link <app-id> --client <client-id>
 
 If `.aid.json` already exists, linking refuses to overwrite it unless you explicitly use `--force`.
 
-`sync` refreshes the application recorded in the current folder, or switches the current folder to a supplied application ID:
+`sync` refreshes the linked application's and OAuth client's metadata from the issuer, updates the local redirect URI/scopes when a client is linked, and preserves unrelated project settings. It validates the issuer and remote response before writing the config atomically. Passing an application ID switches the current folder to that application:
 
 ```sh
 aid sync
