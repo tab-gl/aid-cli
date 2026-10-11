@@ -14,6 +14,7 @@ import { success, fields, warn, heading } from "../ui/format.js";
 import { dim } from "../ui/colors.js";
 import { showBanner } from "../ui/banner.js";
 import { detectProject } from "../project/detect.js";
+import { createStepProgress } from "../ui/progress.js";
 
 const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
@@ -37,7 +38,6 @@ export async function setup(args = []) {
   }
 
   showBanner();
-  const project = await detectProject();
   const configPath = path.join(process.cwd(), CONFIG_FILE);
   const recoveryPath = path.join(process.cwd(), RECOVERY_FILE);
   if (values.recover) {
@@ -66,33 +66,79 @@ export async function setup(args = []) {
     }
   }
 
-  heading(interactive ? "SETUP WIZARD" : "SETUP");
-  console.log(`\n  ${dim("DETECTED")}  ${project.label}${
-    project.sdk ? `  •  ${project.sdk}` : "  •  native SDK not installed"
-  }\n`);
+  const progress = interactive ? createStepProgress([
+    "Detect project",
+    "Check authentication",
+    "Configure options",
+    "Create application",
+    "Create OAuth client",
+    "Install SDK",
+    "Write project config"
+  ]) : null;
 
-  let tokens = await loadTokens();
+  progress?.start(0);
+  let project;
+  try {
+    project = await detectProject();
+    progress?.complete(0, `Project detected: ${project.label}`);
+  } catch (err) {
+    progress?.fail("Project detection failed");
+    throw err;
+  }
+
+  heading(interactive ? "SETUP WIZARD" : "SETUP");
+  console.log(`\n  ${dim("DETECTED")}  ${project.label}${project.sdk ? `  •  ${project.sdk}` : "  •  native SDK not installed"}\n`);
+
+  progress?.start(1);
+  let tokens;
+  try {
+    tokens = await loadTokens();
+  } catch (err) {
+    progress?.fail("Could not read the saved session");
+    throw err;
+  }
   if (!tokens?.access_token) {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
       throw new Error("Not signed in. Run `aid login` first.");
     }
-    await login();
-    tokens = await loadTokens();
-    if (!tokens?.access_token) throw new Error("Sign-in completed without a usable session.");
+    try {
+      await login();
+      tokens = await loadTokens();
+      if (!tokens?.access_token) throw new Error("Sign-in completed without a usable session.");
+    } catch (err) {
+      progress?.fail("Authentication failed");
+      throw err;
+    }
   }
+  progress?.complete(1, "Authentication ready");
 
+  progress?.start(2);
   const defaults = {
     name: values.name?.trim() || await detectProjectName(),
     redirect: values.redirect?.trim() || "http://localhost:3000/callback",
     scopes: normalizeScopes(values.scope?.flat() || SCOPES)
   };
-  const settings = interactive ? await collectWizardValues(defaults) : defaults;
+  let settings;
+  try {
+    settings = interactive ? await collectWizardValues(defaults) : defaults;
+  } catch (err) {
+    progress?.fail("Configuration cancelled or invalid");
+    throw err;
+  }
+  progress?.complete(2, "Options confirmed");
 
-  const app = await apiJson("/apps", {
+  progress?.start(3);
+  let app;
+  try {
+    app = await apiJson("/apps", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: settings.name })
-  });
+      body: JSON.stringify({ name: settings.name })
+    });
+  } catch (err) {
+    progress?.fail("Application creation failed");
+    throw err;
+  }
 
   let recovery = {
     issuer: ISSUER,
@@ -103,7 +149,9 @@ export async function setup(args = []) {
   };
   try {
     await writeRecovery(recoveryPath, recovery);
+    progress?.complete(3, "Application created");
   } catch (err) {
+    progress?.fail("Could not record application recovery state");
     const cleanupFailures = await cleanupRemoteResources(app?.id, null);
     if (cleanupFailures.length) {
       warn(`Could not persist setup recovery state. Manually remove app ${app.id}; cleanup also failed: ${cleanupFailures.join("; ")}`);
@@ -111,6 +159,7 @@ export async function setup(args = []) {
     throw new Error(`Could not record setup recovery state: ${err.message}`);
   }
 
+  progress?.start(4);
   let client;
   try {
     client = await apiJson("/clients", {
@@ -119,6 +168,7 @@ export async function setup(args = []) {
       body: JSON.stringify({ name: settings.name, redirect_uris: [settings.redirect], scopes: settings.scopes, public: true })
     });
   } catch (err) {
+    progress?.fail("OAuth client creation failed");
     const cleanupFailures = await cleanupRemoteResources(app?.id, null);
     if (cleanupFailures.length) {
       recovery = { ...recovery, stage: "cleanup-required" };
@@ -133,7 +183,9 @@ export async function setup(args = []) {
   recovery = { ...recovery, client_id: client.client_id, stage: "resources-created" };
   try {
     await writeRecovery(recoveryPath, recovery);
+    progress?.complete(4, "OAuth client created");
   } catch (err) {
+    progress?.fail("Could not record OAuth client recovery state");
     const cleanupFailures = await cleanupRemoteResources(app?.id, client?.client_id);
     if (cleanupFailures.length) {
       warn(`Could not record recovery state. Manually inspect app ${app.id} and client ${client.client_id}; cleanup failed: ${cleanupFailures.join("; ")}`);
@@ -143,6 +195,7 @@ export async function setup(args = []) {
     throw new Error(`Could not record setup recovery state: ${err.message}`);
   }
 
+  progress?.start(5);
   let sdkStatus = "not applicable";
   try {
     if (project.sdkMode === "android") sdkStatus = await installAndroidSdk(project);
@@ -153,7 +206,9 @@ export async function setup(args = []) {
     warn(`SDK setup skipped: ${err.message}`);
     sdkStatus = "skipped";
   }
+  progress?.complete(5, `SDK step: ${sdkStatus}`);
 
+  progress?.start(6);
   try {
     await writeConfig(configPath, {
       issuer: ISSUER, app_id: app.id, client_id: client.client_id,
@@ -162,6 +217,7 @@ export async function setup(args = []) {
       sdk_path: project.sdkPath, sdk_version: project.sdkVersion
     });
   } catch (err) {
+    progress?.fail("Could not write project config");
     const cleanupFailures = await cleanupRemoteResources(app?.id, client?.client_id);
     if (cleanupFailures.length) {
       recovery = { ...recovery, stage: "cleanup-required" };
@@ -178,6 +234,7 @@ export async function setup(args = []) {
   await removeRecovery(recoveryPath).catch((err) => {
     warn(`Setup succeeded, but the recovery record remains: ${err.message}. Run aid setup --recover to clear it safely.`);
   });
+  progress?.complete(6, "Project configuration saved");
 
   success("Ace ID project configured.");
   fields([
