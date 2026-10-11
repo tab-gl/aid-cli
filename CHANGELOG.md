@@ -6,6 +6,7 @@ All notable changes to the Ace ID CLI are documented here.
 
 ### Security and reliability
 - Serialized token writes and refreshes across CLI processes to protect rotating refresh tokens.
+- Avoided clearing a newer session when a request made with an older access token receives HTTP 401.
 - Re-hardened stored session permissions on load and rejected symlink-based token files.
 - Added a local setup recovery journal and `aid setup --recover` for interrupted remote resource cleanup.
 - Bounded and redacted API, OAuth, and deletion error details.
