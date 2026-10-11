@@ -265,7 +265,9 @@ async function recoverSetup(configPath, recoveryPath, force = false) {
     throw new Error(`Setup recovery record is invalid. Inspect ${RECOVERY_FILE} before retrying.`);
   }
 
-  if (recovery?.issuer !== ISSUER || typeof recovery.app_id !== "string" || !recovery.app_id) {
+  if (recovery?.issuer !== ISSUER || typeof recovery.app_id !== "string" || !recovery.app_id ||
+      (recovery.client_id !== null && recovery.client_id !== undefined &&
+       (typeof recovery.client_id !== "string" || !recovery.client_id))) {
     throw new Error(`Setup recovery record is invalid or belongs to another issuer. Inspect ${RECOVERY_FILE} manually.`);
   }
 
