@@ -60,11 +60,12 @@ async function refresh(tokens) {
   }
 
   if (!response.ok) {
-    const detail = await readApiError(response);
     if (response.status === 400 || response.status === 401) {
+      await response.body?.cancel().catch(() => {});
       await clearTokensUnlocked();
       throw new Error("Refresh failed because the session is no longer valid. Run `aid login` again.");
     }
+    const detail = await readApiError(response);
     throw new Error(`Token refresh failed (${response.status}): ${detail}`);
   }
 
