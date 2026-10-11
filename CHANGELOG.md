@@ -5,6 +5,7 @@ All notable changes to the Ace ID CLI are documented here.
 ## [Unreleased]
 
 ### Security and reliability
+- Added `aid test-auth` to verify the stored session against the authenticated identity endpoint without exposing credentials.
 - Serialized token writes and refreshes across CLI processes to protect rotating refresh tokens.
 - Avoided clearing a newer session when a request made with an older access token receives HTTP 401.
 - Re-hardened stored session permissions on load and rejected symlink-based token files.
