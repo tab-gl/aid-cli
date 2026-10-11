@@ -1,6 +1,6 @@
 import { ISSUER, REQUEST_TIMEOUT_MS } from "../auth/config.js";
 import { getValidAccessToken } from "../auth/refresh.js";
-import { clearTokens } from "../auth/tokens.js";
+import { clearTokensIfAccessToken } from "../auth/tokens.js";
 import { resolveApiUrl } from "./url.js";
 import { readApiError } from "./errors.js";
 
@@ -26,7 +26,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (response.status === 401) {
-    await clearTokens().catch(() => {});
+    await clearTokensIfAccessToken(accessToken).catch(() => {});
     throw new Error("Server rejected the access token. Run `aid login` again.");
   }
   return response;
