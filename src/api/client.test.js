@@ -7,8 +7,8 @@ function resolveWithIssuer(issuer, requestPath) {
     const issuerUrl = new URL(${JSON.stringify(issuer)});
     const requestPath = ${JSON.stringify(requestPath)};
     if (typeof requestPath !== "string" || !requestPath.trim()) throw new Error("empty");
+    if (/^[a-z][a-z0-9+.-]*:/i.test(requestPath) || requestPath.startsWith("//")) throw new Error("unsafe path");
     const path = requestPath.replace(/^\\/+/, "");
-    if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith("//")) throw new Error("unsafe path");
     const base = new URL(issuerUrl.pathname.replace(/\\/$/, "") + "/", issuerUrl.origin);
     const url = new URL(path, base);
     if (url.origin !== issuerUrl.origin || !url.pathname.startsWith(base.pathname)) throw new Error("unsafe path");
