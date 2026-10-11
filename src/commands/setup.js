@@ -139,6 +139,10 @@ export async function setup(args = []) {
     progress?.fail("Application creation failed");
     throw err;
   }
+  if (!app || typeof app !== "object" || Array.isArray(app) || typeof app.id !== "string" || !app.id) {
+    progress?.fail("Application response was invalid");
+    throw new Error("Application creation returned no usable ID. Check the Ace ID dashboard before retrying setup.");
+  }
 
   let recovery = {
     issuer: ISSUER,
@@ -167,6 +171,10 @@ export async function setup(args = []) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: settings.name, redirect_uris: [settings.redirect], scopes: settings.scopes, public: true })
     });
+    if (!client || typeof client !== "object" || Array.isArray(client) ||
+        typeof client.client_id !== "string" || !client.client_id) {
+      throw new Error("OAuth client creation returned no usable client ID.");
+    }
   } catch (err) {
     progress?.fail("OAuth client creation failed");
     const cleanupFailures = await cleanupRemoteResources(app?.id, null);
