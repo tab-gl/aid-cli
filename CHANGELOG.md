@@ -2,6 +2,12 @@
 
 All notable changes to the Ace ID CLI are documented here.
 
+## [Unreleased]
+
+### Fixed
+- Keep API, OAuth token, and Android SDK request deadlines active while response bodies are consumed.
+- Added a regression test for API responses that send headers but never finish the body.
+
 ## [0.1.4]
 
 ### Fixed
