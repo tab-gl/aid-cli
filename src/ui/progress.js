@@ -1,4 +1,4 @@
-import { colorsEnabled, green, dim, yellow } from "./colors.js";
+import { green, dim, yellow } from "./colors.js";
 
 /**
  * A line-oriented progress display that behaves well in mobile terminals.
