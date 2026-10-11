@@ -4,10 +4,18 @@ import { clearTokens } from "../auth/tokens.js";
 
 const ISSUER_URL = new URL(ISSUER);
 const ISSUER_ORIGIN = ISSUER_URL.origin;
+const ISSUER_BASE_PATH = ISSUER_URL.pathname.replace(/\/$/, "");
 
-function resolveApiUrl(path) {
-  const url = new URL(path, ISSUER_URL);
-  if (url.origin !== ISSUER_ORIGIN) {
+function resolveApiUrl(requestPath) {
+  if (typeof requestPath !== "string" || !requestPath.trim()) {
+    throw new TypeError("API path must be a non-empty string.");
+  }
+
+  // API paths are rooted under the configured issuer path, rather than the
+  // URL origin, so deployments mounted below a prefix remain supported.
+  const path = requestPath.replace(/^\/+/, "");
+  const url = new URL(`${ISSUER_BASE_PATH}/${path}`, ISSUER_ORIGIN);
+  if (url.origin !== ISSUER_ORIGIN || !url.pathname.startsWith(`${ISSUER_BASE_PATH}/`)) {
     throw new Error("Refusing API request outside the configured Ace ID issuer.");
   }
   return url;
@@ -23,10 +31,13 @@ export async function apiFetch(path, options = {}) {
 
   let response;
   try {
-    response = await fetchWithTimeout(url, { ...options, headers });
+    response = await fetchWithTimeout(url, { ...options, headers, redirect: "error" });
   } catch (err) {
     if (err.name === "AbortError") {
       throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
+    if (err.name === "TypeError" && /redirect/i.test(err.message)) {
+      throw new Error("API request was redirected unexpectedly; refusing to forward credentials.");
     }
     throw new Error(`Network request failed: ${err.message}`);
   }
@@ -35,7 +46,6 @@ export async function apiFetch(path, options = {}) {
     await clearTokens().catch(() => {});
     throw new Error("Server rejected the access token. Run `aid login` again.");
   }
-
   return response;
 }
 
