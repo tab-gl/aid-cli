@@ -75,7 +75,7 @@ export async function login() {
     if (err.name === "TypeError") {
       throw new Error("Token endpoint request failed or was redirected unexpectedly.");
     }
-    throw new Error(`Token exchange request failed: ${err.message}`);
+    throw new Error("Token exchange request failed. Check your connection and try again.");
   }
 
   if (!response.ok) {
