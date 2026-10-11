@@ -13,7 +13,7 @@ test("help prints real newlines and command aliases", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /USAGE\n/);
   assert.match(result.stdout, /apps list/);
-  assert.doesNotMatch(result.stdout, /\\\\n/);
+  assert.equal(result.stdout.includes("\\n"), false, "help must not print literal backslash-n sequences");
 });
 
 test("version reports package version", () => {
