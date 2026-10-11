@@ -77,8 +77,10 @@ export async function withTokenLock(callback) {
   let handle;
 
   while (!handle) {
+    let openedByUs = false;
     try {
       handle = await fs.open(LOCK_FILE, "wx", 0o600);
+      openedByUs = true;
       await handle.writeFile(JSON.stringify({ pid: process.pid, created_at: Date.now() }));
       await handle.sync();
     } catch (err) {
@@ -86,6 +88,7 @@ export async function withTokenLock(callback) {
         await handle.close().catch(() => {});
         handle = null;
       }
+      if (openedByUs) await fs.unlink(LOCK_FILE).catch(() => {});
       if (err.code !== "EEXIST") throw err;
       await removeStaleLock();
       if (Date.now() - startedAt >= LOCK_WAIT_MS) {
