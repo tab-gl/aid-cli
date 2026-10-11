@@ -79,8 +79,12 @@ function normalizeCommand(rawCommand, rawArgs) {
 }
 
 function printHelp() {
-  console.log(`  ${dim("USAGE")}\n\n    aid <command> [options]\n    aid <command> [options] \\; aid <command> [options]\n`);
-  console.log(`  ${dim("COMMANDS")}`);
+  console.log("  " + dim("USAGE"));
+  console.log("");
+  console.log("    aid <command> [options]");
+  console.log("    aid <command> [options] \\; aid <command> [options]");
+  console.log("");
+  console.log("  " + dim("COMMANDS"));
   commandList([
     ["setup", "Set up an Ace ID project"], ["init", "Alias for setup"],
     ["login", "Sign in via Ace ID"], ["logout", "Sign out"],
@@ -89,36 +93,44 @@ function printHelp() {
     ["sync", "Refresh the linked application in this folder"],
     ["clients", "Manage OAuth clients"], ["version", "Show CLI version"], ["help", "Show this message"]
   ]);
-  console.log(`\n  ${dim("SHORT FLAGS")}`);
+  console.log("");
+  console.log("  " + dim("SHORT FLAGS"));
   commandList([
     ["-h", "Alias for --help"], ["-i", "Alias for --interactive / --id by command"], ["-n", "Alias for --name"],
     ["-r", "Alias for --redirect"], ["-s", "Alias for --scope"], ["-d", "Alias for --description"],
     ["-c", "Alias for --client"], ["-p", "Alias for --public"], ["-f", "Alias for --force"], ["-v", "Alias for --version"]
   ]);
-  console.log(`\n  ${dim("APPS SUBCOMMANDS")}`);
+  console.log("");
+  console.log("  " + dim("APPS SUBCOMMANDS"));
   commandList([
     ["apps list", "List applications"], ["apps create --name <name>", "Create an application"],
     ["apps get <id>", "Show an application"], ["apps update <id> --name <name>", "Update application name"],
     ["apps delete <id>...", "Delete one or more applications"], ["app <subcommand>", "Compatibility alias for apps"],
     ["create app ...", "Compatibility shorthand for apps create ..."]
   ]);
-  console.log(`\n  ${dim("PROJECT LINKING")}`);
+  console.log("");
+  console.log("  " + dim("PROJECT LINKING"));
   commandList([
     ["link <app_id>", "Link an existing app to the current folder"], ["link <app_id> --client <client_id>", "Link an app and record an OAuth client"],
     ["sync", "Refresh the app recorded in .aid.json"], ["sync <app_id>", "Replace the current link with an app"]
   ]);
-  console.log(`\n  ${dim("CLIENTS SUBCOMMANDS")}`);
+  console.log("");
+  console.log("  " + dim("CLIENTS SUBCOMMANDS"));
   commandList([
     ["clients list", "List clients"], ["clients create --name <n> --redirect <uri>", "Create a client"],
-    ["clients get <client_id>", "Show one client"], ["clients delete <client_id>", "Delete a client"], ["clients rotate-secret <client_id>", "Rotate a client secret"]
+    ["clients get <client_id>", "Show one client"], ["clients delete <client_id>", "Delete a client"],
+    ["clients rotate-secret <client_id>", "Rotate a client secret"]
   ]);
-  console.log(`\n  ${dim("COMMAND CHAINING")}`);
+  console.log("");
+  console.log("  " + dim("COMMAND CHAINING"));
   commandList([
     ["aid setup -i \\; aid create app -n my-app", "Run full commands sequentially"],
     ["aid login \\; aid apps list", "Stop immediately if a command fails"]
   ]);
-  console.log(`\n  ${dim("ALIASES")}`);
+  console.log("");
+  console.log("  " + dim("ALIASES"));
   commandList([["aid", "Canonical command"], ["ace-id", "Compatibility alias"], ["aidc", "Compatibility alias"], ["app", "Compatibility alias for apps"]]);
-  console.log(`\n  ${dim("SUPPORT")}`);
+  console.log("");
+  console.log("  " + dim("SUPPORT"));
   commandList([["Docs", "https://docs.ace-base.cc"], ["Support", "https://bsky.app/profile/ace-base.cc"]]);
 }
