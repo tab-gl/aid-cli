@@ -9,6 +9,7 @@ node_modules/
 .env
 .env.*
 .aid.json
+.aid-setup-recovery.json
 *.pem
 *.key
 
