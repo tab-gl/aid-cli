@@ -15,15 +15,11 @@ export async function getValidAccessToken() {
     throw new Error("Not signed in. Run `aid login` first.");
   }
 
-  if (!isExpiringSoon(tokens)) {
-    return tokens.access_token;
-  }
+  if (!isExpiringSoon(tokens)) return tokens.access_token;
 
   if (!tokens.refresh_token) {
     await clearTokens();
-    throw new Error(
-      "Session expired and no refresh token is stored. Run `aid login` again."
-    );
+    throw new Error("Session expired and no refresh token is stored. Run `aid login` again.");
   }
 
   if (!refreshPromise) {
@@ -38,13 +34,11 @@ export async function getValidAccessToken() {
 
 async function refresh(tokens) {
   let response;
-
   try {
     response = await fetchWithTimeout(`${ISSUER}/token`, {
       method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded"
-      },
+      redirect: "error",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "refresh_token",
         refresh_token: tokens.refresh_token,
@@ -52,16 +46,17 @@ async function refresh(tokens) {
       })
     });
   } catch (err) {
-    throw new Error(`Token refresh failed: ${err.message}`);
+    if (err.name === "AbortError") {
+      throw new Error(`Token refresh timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
+    throw new Error("Token refresh request failed or was redirected unexpectedly.");
   }
 
   if (!response.ok) {
     const detail = await readError(response);
     if (response.status === 400 || response.status === 401) {
       await clearTokens();
-      throw new Error(
-        "Refresh failed because the session is no longer valid. Run `aid login` again."
-      );
+      throw new Error("Refresh failed because the session is no longer valid. Run `aid login` again.");
     }
     throw new Error(`Token refresh failed (${response.status}): ${detail}`);
   }
