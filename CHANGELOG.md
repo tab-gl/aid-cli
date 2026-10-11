@@ -4,6 +4,13 @@ All notable changes to the Ace ID CLI are documented here.
 
 ## [Unreleased]
 
+### Security and reliability
+- Serialized token writes and refreshes across CLI processes to protect rotating refresh tokens.
+- Re-hardened stored session permissions on load and rejected symlink-based token files.
+- Added a local setup recovery journal and `aid setup --recover` for interrupted remote resource cleanup.
+- Bounded and redacted API, OAuth, and deletion error details.
+- Added regression coverage for refresh races, setup recovery, and API error redaction.
+
 ### Fixed
 - Keep API, OAuth token, and Android SDK request deadlines active while response bodies are consumed.
 - Added a regression test for API responses that send headers but never finish the body.
