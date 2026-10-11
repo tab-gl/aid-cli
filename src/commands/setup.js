@@ -41,7 +41,7 @@ export async function setup(args = []) {
   const configPath = path.join(process.cwd(), CONFIG_FILE);
   const recoveryPath = path.join(process.cwd(), RECOVERY_FILE);
   if (values.recover) {
-    await recoverSetup(configPath, recoveryPath);
+    await recoverSetup(configPath, recoveryPath, Boolean(values.force));
     return;
   }
   const interactive = Boolean(values.interactive || values.wizard);
@@ -250,7 +250,7 @@ async function removeRecovery(file) {
   });
 }
 
-async function recoverSetup(configPath, recoveryPath) {
+async function recoverSetup(configPath, recoveryPath, force = false) {
   let recovery;
   try {
     recovery = JSON.parse(await fs.readFile(recoveryPath, "utf8"));
@@ -275,6 +275,16 @@ async function recoverSetup(configPath, recoveryPath) {
     await removeRecovery(recoveryPath);
     success("Setup configuration is already complete; cleared the recovery record without deleting resources.");
     return;
+  }
+
+  if (!force) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error("Recovery can delete remote resources. Review the recovery record and rerun `aid setup --recover --force` in a non-interactive environment.");
+    }
+    if (!(await confirm(`Remove app ${recovery.app_id}${recovery.client_id ? ` and client ${recovery.client_id}` : ""} left by interrupted setup? [y/N] `))) {
+      console.log("Recovery cancelled.");
+      return;
+    }
   }
 
   const failures = await cleanupRemoteResources(recovery.app_id, recovery.client_id);
