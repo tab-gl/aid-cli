@@ -33,7 +33,7 @@ async function fixture(t, configure) {
   await fs.mkdir(sessionDir, { recursive: true });
   await fs.writeFile(path.join(sessionDir, "tokens.json"), JSON.stringify({
     access_token: "test-access-token",
-    expires_at: Date.now() + 60_000
+    expires_at: Date.now() + 3_600_000
   }), { mode: 0o600 });
 
   const env = {
