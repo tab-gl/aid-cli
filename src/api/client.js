@@ -2,6 +2,7 @@ import { ISSUER, REQUEST_TIMEOUT_MS } from "../auth/config.js";
 import { getValidAccessToken } from "../auth/refresh.js";
 import { clearTokens } from "../auth/tokens.js";
 import { resolveApiUrl } from "./url.js";
+import { readApiError } from "./errors.js";
 
 export async function apiFetch(path, options = {}) {
   const url = resolveApiUrl(path);
@@ -34,8 +35,7 @@ export async function apiFetch(path, options = {}) {
 export async function apiJson(path, options = {}) {
   const response = await apiFetch(path, options);
   if (!response.ok) {
-    const text = await response.text();
-    const detail = text.length > 500 ? `${text.slice(0, 500)}…` : text;
+    const detail = await readApiError(response);
     throw new Error(`Request failed (${response.status}): ${detail}`);
   }
 
