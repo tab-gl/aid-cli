@@ -46,7 +46,7 @@ async function refresh(tokens) {
       })
     });
   } catch (err) {
-    if (err.name === "AbortError") {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
       throw new Error(`Token refresh timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
     }
     throw new Error("Token refresh request failed or was redirected unexpectedly.");
