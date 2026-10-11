@@ -4,17 +4,18 @@ import { spawnSync } from "node:child_process";
 
 function resolveWithIssuer(issuer, requestPath) {
   const script = `
-    const issuerUrl = new URL(${JSON.stringify(issuer)});
-    const requestPath = ${JSON.stringify(requestPath)};
-    if (typeof requestPath !== "string" || !requestPath.trim()) throw new Error("empty");
-    if (/^[a-z][a-z0-9+.-]*:/i.test(requestPath) || requestPath.startsWith("//")) throw new Error("unsafe path");
-    const path = requestPath.replace(/^\\/+/, "");
-    const base = new URL(issuerUrl.pathname.replace(/\\/$/, "") + "/", issuerUrl.origin);
-    const url = new URL(path, base);
-    if (url.origin !== issuerUrl.origin || !url.pathname.startsWith(base.pathname)) throw new Error("unsafe path");
-    console.log(url.href);
+    import { resolveApiUrl } from ${JSON.stringify(new URL("./url.js", import.meta.url).href)};
+    try {
+      console.log(resolveApiUrl(${JSON.stringify(requestPath)}).href);
+    } catch (error) {
+      console.error(error.message);
+      process.exitCode = 1;
+    }
   `;
-  return spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
+  return spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+    env: { ...process.env, AIDC_ISSUER: issuer }
+  });
 }
 
 test("keeps API calls inside an issuer path prefix", () => {
@@ -28,6 +29,12 @@ test("rejects absolute and protocol-relative request paths", () => {
   assert.notEqual(resolveWithIssuer("https://identity.example", "//evil.example/steal").status, 0);
 });
 
-test("rejects path traversal outside a configured issuer prefix", () => {
+test("rejects plain and encoded path traversal outside the issuer prefix", () => {
   assert.notEqual(resolveWithIssuer("https://identity.example/base", "../steal").status, 0);
+  assert.notEqual(resolveWithIssuer("https://identity.example/base", "%2e%2e/steal").status, 0);
+});
+
+test("rejects empty and non-string paths", () => {
+  assert.notEqual(resolveWithIssuer("https://identity.example", "").status, 0);
+  assert.notEqual(resolveWithIssuer("https://identity.example", "   ").status, 0);
 });
