@@ -47,7 +47,7 @@ async function fixture(t, configure) {
 
 function runSetupRecover(root, env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [entry, "setup", "--recover"], {
+    const child = spawn(process.execPath, [entry, "setup", "--recover", "--force"], {
       cwd: root,
       env,
       stdio: ["ignore", "pipe", "pipe"]
