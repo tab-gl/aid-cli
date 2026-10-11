@@ -39,7 +39,8 @@ async function fixture(t, configure) {
   const env = {
     ...process.env,
     AIDC_ISSUER: `http://127.0.0.1:${server.address().port}`,
-    XDG_CONFIG_HOME: configHome
+    XDG_CONFIG_HOME: configHome,
+    AIDC_REFRESH_LEEWAY_MS: "1000"
   };
   await configure({ root, env });
   return { root, env, requests };
