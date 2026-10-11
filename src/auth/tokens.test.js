@@ -60,3 +60,32 @@ test("rejects symlink-based session files", { skip: process.platform === "win32"
   assert.equal(result.status, 1);
   assert.match(result.stderr, /invalid or unsafe/);
 });
+
+
+test("stale-token 401 cleanup preserves a newer saved session", async (t) => {
+  const configHome = await fs.mkdtemp(path.join(os.tmpdir(), "aid-cli-token-race-"));
+  t.after(() => fs.rm(configHome, { recursive: true, force: true }));
+  const dir = path.join(configHome, "aidc");
+  await fs.mkdir(dir, { recursive: true });
+  const file = path.join(dir, "tokens.json");
+  await fs.writeFile(file, JSON.stringify({
+    access_token: "new-access-token",
+    refresh_token: "new-refresh-token",
+    expires_at: Date.now() + 3_600_000
+  }), { mode: 0o600 });
+
+  const script = `
+    import { clearTokensIfAccessToken, loadTokens } from ${JSON.stringify(moduleUrl)};
+    const cleared = await clearTokensIfAccessToken("old-access-token");
+    console.log(JSON.stringify({ cleared, tokens: await loadTokens() }));
+  `;
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+    encoding: "utf8",
+    env: { ...process.env, XDG_CONFIG_HOME: configHome }
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.cleared, false);
+  assert.equal(output.tokens.access_token, "new-access-token");
+});
