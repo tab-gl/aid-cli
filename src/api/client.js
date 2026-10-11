@@ -26,6 +26,7 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (response.status === 401) {
+    await response.body?.cancel().catch(() => {});
     await clearTokensIfAccessToken(accessToken).catch(() => {});
     throw new Error("Server rejected the access token. Run `aid login` again.");
   }
