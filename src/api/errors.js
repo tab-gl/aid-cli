@@ -70,6 +70,7 @@ async function readBoundedBody(response) {
         break;
       }
     }
+    if (bytes >= MAX_ERROR_BYTES) await reader.cancel().catch(() => {});
     output += decoder.decode();
   } finally {
     reader.releaseLock();
