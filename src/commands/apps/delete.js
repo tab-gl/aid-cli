@@ -1,5 +1,6 @@
 import { apiFetch } from "../../api/client.js";
 import { success } from "../../ui/format.js";
+import { readApiError } from "../../api/errors.js";
 
 export async function del(args) {
   const ids = args.filter(Boolean);
@@ -11,8 +12,8 @@ export async function del(args) {
 
     if (response.status === 404) throw new Error(`No app found with ID ${id}`);
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Delete failed (${response.status}) for ${id}: ${text}`);
+      const detail = await readApiError(response);
+      throw new Error(`Delete failed (${response.status}) for ${id}: ${detail}`);
     }
 
     success(`Deleted ${id}`);
