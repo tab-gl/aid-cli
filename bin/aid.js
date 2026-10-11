@@ -86,7 +86,7 @@ function printHelp() {
   console.log("");
   console.log("  " + dim("COMMANDS"));
   commandList([
-    ["setup", "Set up a project; --recover cleans interrupted setup"], ["init", "Alias for setup"],
+    ["setup", "Set up a project; --recover cleans interrupted setup (--force confirms)"], ["init", "Alias for setup"],
     ["login", "Sign in via Ace ID"], ["logout", "Sign out"],
     ["whoami", "Show signed-in account"], ["apps", "Manage applications"],
     ["link", "Link an application to this folder and write .aid.json"],
