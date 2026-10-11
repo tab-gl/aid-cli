@@ -22,7 +22,7 @@ export async function apiFetch(path, options = {}) {
     if (err.name === "TypeError" && /redirect/i.test(err.message)) {
       throw new Error("API request was redirected unexpectedly; refusing to forward credentials.");
     }
-    throw new Error(`Network request failed: ${err.message}`);
+    throw new Error("Network request failed. Check your connection and try again.");
   }
 
   if (response.status === 401) {
