@@ -331,16 +331,13 @@ function packageInstallCommand(manager, packageName) {
 }
 
 async function fetchWithTimeout(url, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    // Keep the deadline active through release JSON and artifact body reads.
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   } catch (err) {
-    if (err.name === "AbortError") {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
       throw new Error(`SDK download request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
     }
     throw new Error(`SDK download request failed: ${err.message}`);
-  } finally {
-    clearTimeout(timer);
   }
 }
