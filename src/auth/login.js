@@ -149,11 +149,6 @@ function hasCommand(bin) {
 }
 
 async function fetchWithTimeout(url, options) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  // AbortSignal.timeout remains active while fetch response bodies are read.
+  return fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 }
