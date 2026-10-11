@@ -82,6 +82,7 @@ test("request timeout remains active while consuming a stalled response body", a
       ...process.env,
       AIDC_ISSUER: `http://127.0.0.1:${port}`,
       AIDC_REQUEST_TIMEOUT_MS: "100",
+      AIDC_REFRESH_LEEWAY_MS: "1000",
       XDG_CONFIG_HOME: configHome
     },
     stdio: ["ignore", "pipe", "pipe"]
