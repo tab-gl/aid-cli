@@ -11,13 +11,14 @@ import { clients } from "../src/commands/clients/index.js";
 import { setup } from "../src/commands/setup.js";
 import { link } from "../src/commands/link.js";
 import { sync } from "../src/commands/sync.js";
+import { testAuth } from "../src/commands/test-auth.js";
 import { failure, commandList } from "../src/ui/format.js";
 import { dim } from "../src/ui/colors.js";
 import { showBanner } from "../src/ui/banner.js";
 import { withScreen } from "../src/ui/screen.js";
 
 const [, , ...argv] = process.argv;
-const commands = { setup, login, logout, whoami, apps, clients, link, sync };
+const commands = { setup, login, logout, whoami, apps, clients, link, sync, "test-auth": testAuth };
 
 try {
   for (const chain of splitCommandChain(argv)) await runCommand(chain);
@@ -88,7 +89,7 @@ function printHelp() {
   commandList([
     ["setup", "Set up a project; --recover cleans interrupted setup (--force confirms)"], ["init", "Alias for setup"],
     ["login", "Sign in via Ace ID"], ["logout", "Sign out"],
-    ["whoami", "Show signed-in account"], ["apps", "Manage applications"],
+    ["whoami", "Show signed-in account"], ["test-auth", "Verify the current session against the identity API"], ["apps", "Manage applications"],
     ["link", "Link an application to this folder and write .aid.json"],
     ["sync", "Refresh the linked application in this folder"],
     ["clients", "Manage OAuth clients"], ["version", "Show CLI version"], ["help", "Show this message"]
