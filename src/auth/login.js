@@ -69,6 +69,9 @@ export async function login() {
     });
   } catch (err) {
     s.fail("Network error during token exchange.");
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
+      throw new Error(`Token exchange timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
     if (err.name === "TypeError") {
       throw new Error("Token endpoint request failed or was redirected unexpectedly.");
     }
@@ -84,7 +87,11 @@ export async function login() {
   let body;
   try {
     body = await response.json();
-  } catch {
+  } catch (err) {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
+      s.fail("Token endpoint response timed out.");
+      throw new Error(`Token endpoint response timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
     s.fail("Token endpoint returned invalid JSON.");
     throw new Error("Token endpoint returned invalid JSON. Run `aid login` again.");
   }
