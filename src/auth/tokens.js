@@ -62,6 +62,15 @@ export async function clearTokens() {
   return withTokenLock(() => clearTokensUnlocked());
 }
 
+export async function clearTokensIfAccessToken(expectedAccessToken) {
+  return withTokenLock(async () => {
+    const current = await loadTokens();
+    if (!current || current.access_token !== expectedAccessToken) return false;
+    await clearTokensUnlocked();
+    return true;
+  });
+}
+
 export async function clearTokensUnlocked() {
   try {
     await fs.unlink(FILE);
