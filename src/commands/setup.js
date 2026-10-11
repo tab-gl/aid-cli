@@ -227,6 +227,7 @@ async function cleanupRemoteResources(appId, clientId) {
     try {
       const response = await apiFetch(`/clients/${encodeURIComponent(clientId)}`, { method: "DELETE" });
       if (!response.ok && response.status !== 404) failures.push(`client ${clientId} (HTTP ${response.status})`);
+      await response.body?.cancel().catch(() => {});
     } catch (err) {
       failures.push(`client ${clientId} (${err.message})`);
     }
@@ -235,6 +236,7 @@ async function cleanupRemoteResources(appId, clientId) {
     try {
       const response = await apiFetch(`/apps/${encodeURIComponent(appId)}`, { method: "DELETE" });
       if (!response.ok && response.status !== 404) failures.push(`app ${appId} (HTTP ${response.status})`);
+      await response.body?.cancel().catch(() => {});
     } catch (err) {
       failures.push(`app ${appId} (${err.message})`);
     }
