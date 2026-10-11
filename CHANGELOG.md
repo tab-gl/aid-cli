@@ -5,6 +5,9 @@ All notable changes to the Ace ID CLI are documented here.
 ## [Unreleased]
 
 ### Security and reliability
+- Added a step-based progress display to interactive setup and validation for remote app/client creation responses.
+- Improved `sync` to validate issuer and remote resource data, refresh linked app/client metadata, preserve unrelated settings, and leave malformed or mismatched config untouched.
+- Prevented relinking from carrying a stale OAuth client or redirect configuration across different applications.
 - Added `aid test-auth` to verify the stored session against the authenticated identity endpoint without exposing credentials.
 - Serialized token writes and refreshes across CLI processes to protect rotating refresh tokens.
 - Avoided clearing a newer session when a request made with an older access token receives HTTP 401.
