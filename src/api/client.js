@@ -11,11 +11,14 @@ function resolveApiUrl(requestPath) {
     throw new TypeError("API path must be a non-empty string.");
   }
 
-  // API paths are rooted under the configured issuer path, rather than the
-  // URL origin, so deployments mounted below a prefix remain supported.
   const path = requestPath.replace(/^\/+/, "");
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith("//")) {
+    throw new Error("Refusing API request outside the configured Ace ID issuer.");
+  }
+
   const url = new URL(`${ISSUER_BASE_PATH}/${path}`, ISSUER_ORIGIN);
-  if (url.origin !== ISSUER_ORIGIN || !url.pathname.startsWith(`${ISSUER_BASE_PATH}/`)) {
+  const basePath = `${ISSUER_BASE_PATH}/`;
+  if (url.origin !== ISSUER_ORIGIN || (ISSUER_BASE_PATH && !url.pathname.startsWith(basePath))) {
     throw new Error("Refusing API request outside the configured Ace ID issuer.");
   }
   return url;
