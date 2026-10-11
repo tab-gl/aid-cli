@@ -120,7 +120,7 @@ export async function setup(args = []) {
     if (cleanupFailures.length) {
       recovery = { ...recovery, stage: "cleanup-required" };
       await writeRecovery(recoveryPath, recovery).catch(() => {});
-      warn(`Setup cleanup is incomplete. Run `aid setup --recover` to retry removal of app ${app.id}.`);
+      warn("Setup cleanup is incomplete. Run aid setup --recover to retry removal of the created resources.");
     } else {
       await removeRecovery(recoveryPath);
     }
@@ -158,18 +158,23 @@ export async function setup(args = []) {
       project_type: project.type, framework: project.label, sdk: project.sdk,
       sdk_path: project.sdkPath, sdk_version: project.sdkVersion
     });
-    await removeRecovery(recoveryPath);
   } catch (err) {
     const cleanupFailures = await cleanupRemoteResources(app?.id, client?.client_id);
     if (cleanupFailures.length) {
       recovery = { ...recovery, stage: "cleanup-required" };
       await writeRecovery(recoveryPath, recovery).catch(() => {});
-      warn(`Setup cleanup is incomplete. Run `aid setup --recover` to retry removal of the created resources.`);
+      warn("Setup cleanup is incomplete. Run aid setup --recover to retry removal of the created resources.");
     } else {
       await removeRecovery(recoveryPath);
     }
     throw new Error(`Could not write ${CONFIG_FILE}: ${err.message}`);
   }
+
+  // If the journal cannot be removed, recovery recognizes the completed config
+  // and clears the journal without deleting resources the project now uses.
+  await removeRecovery(recoveryPath).catch((err) => {
+    warn(`Setup succeeded, but the recovery record remains: ${err.message}. Run aid setup --recover to clear it safely.`);
+  });
 
   success("Ace ID project configured.");
   fields([
@@ -274,7 +279,7 @@ async function recoverSetup(configPath, recoveryPath) {
 
   const failures = await cleanupRemoteResources(recovery.app_id, recovery.client_id);
   if (failures.length) {
-    throw new Error(`Setup recovery is incomplete. Fix the reported cleanup errors and rerun `aid setup --recover`.`);
+    throw new Error("Setup recovery is incomplete. Fix the reported cleanup errors and rerun aid setup --recover.");
   }
   await removeRecovery(recoveryPath);
   success("Removed resources left behind by the interrupted setup.");
