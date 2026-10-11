@@ -2,25 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 
-const apiUrl = new URL("./client.js", import.meta.url);
-
 function resolveWithIssuer(issuer, requestPath) {
   const script = `
     const issuer = ${JSON.stringify(issuer)};
-    const ISSUER_URL = new URL(issuer);
-    const ISSUER_ORIGIN = ISSUER_URL.origin;
-    const ISSUER_BASE_PATH = ISSUER_URL.pathname.replace(/\\/$/, "");
-    function resolveApiUrl(requestPath) {
-      if (typeof requestPath !== "string" || !requestPath.trim()) throw new TypeError("API path must be a non-empty string.");
-      const path = requestPath.replace(/^\\/+/, "");
-      if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith("//")) throw new Error("unsafe path");
-      const url = new URL(`${ISSUER_BASE_PATH}/${path}`, ISSUER_ORIGIN);
-      const basePath = `${ISSUER_BASE_PATH}/`;
-      if (url.origin !== ISSUER_ORIGIN || (ISSUER_BASE_PATH && !url.pathname.startsWith(basePath))) throw new Error("unsafe path");
-      return url.href;
-    }
-    try { console.log(resolveApiUrl(${JSON.stringify(requestPath)})); }
-    catch (error) { console.error(error.message); process.exitCode = 1; }
+    const requestPath = ${JSON.stringify(requestPath)};
+    const issuerUrl = new URL(issuer);
+    const basePath = issuerUrl.pathname.replace(/\\/$/, "") + "/";
+    const path = requestPath.replace(/^\\/+/, "");
+    if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith("//")) throw new Error("unsafe path");
+    const url = new URL(path, new URL(basePath, issuerUrl.origin));
+    if (url.origin !== issuerUrl.origin || !url.pathname.startsWith(basePath)) throw new Error("unsafe path");
+    console.log(url.href);
   `;
   return spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8" });
 }
