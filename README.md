@@ -183,7 +183,7 @@ Project configuration is stored in `.aid.json`. Do not commit it if your workflo
 
 ## Security model
 
-The CLI uses PKCE, one-time callback state validation, loopback-only callback binding, issuer-origin and path checks, redirect rejection for authenticated API/token requests, bounded network operations, atomic local token/config writes, strict token-shape validation, argument-array process execution, and pinned/hash-verified Android artifacts.
+The CLI uses PKCE, one-time callback state validation, loopback-only callback binding, issuer-origin and path checks, redirect rejection for authenticated API/token requests, bounded network operations, atomic local token/config writes, cross-process session locking, strict token-shape validation, restrictive session-file permissions, argument-array process execution, bounded/redacted API errors, and pinned/hash-verified Android artifacts.
 
 ## Troubleshooting
 
