@@ -4,46 +4,35 @@ All notable changes to the Ace ID CLI are documented here.
 
 ## [0.1.4]
 
-### Added
-- `apps` is the canonical application-management command; `app` remains a compatibility alias.
-- Smart application command normalization: `list`, `create`, `get`, `update`, and `delete` route to `apps` when used at the top level.
-- Canonical `link <app_id>` command to bind an existing remote application to the current folder and create `.aid.json`.
-- `sync` command to refresh an existing local application link or switch it to a specified application.
-- Optional `--client <client_id>` support when linking a project.
-- Explicit `--force` protection for replacing an existing `.aid.json` link.
-- Version bumped to `0.1.4`.
+### Fixed
+- Corrected `aid --version` so it prints the actual package version.
+- Fixed literal newline escapes in CLI help output.
+- Aligned package metadata and lockfile with the documented 0.1.4 release.
+- Prevented unrelated or forged OAuth callback requests from terminating a valid login attempt.
+- Validated issuer, callback port, timeout, and refresh-leeway configuration at startup.
+- Preserved issuer path prefixes for API requests and blocked credential forwarding across redirects.
+- Added automated regression-test execution to CI.
+- Ignored local `.aid.json` configuration files.
 
-### Safety
-- Linking and syncing never create remote applications or clients implicitly.
-- Existing `.aid.json` is preserved unless `--force` is explicitly supplied.
+### Security
+- OAuth callback requests now validate HTTP method and path and use no-store response headers.
+- Invalid security-sensitive environment configuration fails clearly instead of silently falling back.
 
 ## [0.1.3]
 
 ### Audit fixes
-- Added the neutral near-white terminal text hierarchy: `#FAFAFA`, `#F4F4F5`, `#E4E4E7`, `#D4D4D8`, `#A1A1AA`, `#71717A`, with `#FFFFFF` reserved for emphasis.
-- Fixed `dim()` so muted labels actually use the muted palette instead of the primary foreground.
-- Fixed screen clearing so `aid` preserves terminal scrollback instead of issuing `3J` and erasing it.
-- Added request timeouts to automatic Android SDK release and artifact downloads.
-
-- Complete `--help` command/flag reference, including setup, apps, clients, aliases, and short flags.
+- Added the neutral near-white terminal text hierarchy and corrected muted label styling.
+- Fixed screen clearing so `aid` preserves terminal scrollback.
+- Added timeouts to automatic Android SDK release and artifact downloads.
 
 ### Added
 - Version-agnostic JavaScript SDK detection.
 - Explicit interactive setup mode with `aid setup --interactive`.
-- Authentication request timeouts.
-- Concurrent token-refresh deduplication.
+- Authentication request timeouts and concurrent token-refresh deduplication.
 - CI validation for syntax, package generation, and CLI smoke tests.
-
-### Changed
-- `aid setup` remains the fast default while the wizard is opt-in.
-- README now documents aliases, setup modes, authentication, portability, SDK compatibility, configuration, and security.
-- API authentication now invalidates locally stored sessions when the server rejects them.
-- Token refresh errors are normalized and bounded.
-- JavaScript SDK setup no longer pins the CLI to a specific SDK release.
 
 ### Security
 - Validated issuer configuration and HTTPS enforcement for non-local issuers.
-- Bounded OAuth token exchange and API requests.
 - Invalid refresh sessions are cleared automatically.
 - Malformed token responses are rejected safely.
 
@@ -51,10 +40,8 @@ All notable changes to the Ace ID CLI are documented here.
 
 ### Added
 - `aid`, `ace-id`, and `aidc` command aliases.
-- Fast project setup with sensible defaults.
-- Interactive setup wizard support.
-- PKCE-based OIDC login.
-- Application and OAuth client management.
+- Fast and interactive setup modes.
+- PKCE-based OIDC login and app/client management.
 - Project detection for common JavaScript and Android projects.
 
 ### Security
