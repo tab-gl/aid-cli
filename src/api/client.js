@@ -16,9 +16,10 @@ function resolveApiUrl(requestPath) {
     throw new Error("Refusing API request outside the configured Ace ID issuer.");
   }
 
-  const base = `${ISSUER_BASE_PATH}/`;
-  const url = new URL(path, new URL(base, ISSUER_ORIGIN));
-  if (url.origin !== ISSUER_ORIGIN || !url.pathname.startsWith(base)) {
+  const base = new URL(`${ISSUER_BASE_PATH}/`, ISSUER_ORIGIN);
+  const url = new URL(path, base);
+  const basePath = base.pathname;
+  if (url.origin !== ISSUER_ORIGIN || !url.pathname.startsWith(basePath)) {
     throw new Error("Refusing API request outside the configured Ace ID issuer.");
   }
   return url;
