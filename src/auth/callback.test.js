@@ -1,12 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
+
 import { waitForCallback } from "./callback.js";
 import { CALLBACK_PORT } from "./config.js";
 
 function request(path, method = "GET") {
   return new Promise((resolve, reject) => {
-    const req = http.request({ hostname: "127.0.0.1", port: CALLBACK_PORT, path, method }, (res) => {
+    const req = http.request({
+      hostname: "127.0.0.1",
+      port: CALLBACK_PORT,
+      path,
+      method,
+      agent: false,
+      headers: { connection: "close" }
+    }, (res) => {
       res.resume();
       res.on("end", () => resolve(res.statusCode));
     });
