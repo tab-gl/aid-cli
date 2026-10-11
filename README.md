@@ -74,11 +74,12 @@ Login uses **OpenID Connect Authorization Code + PKCE (S256)**.
 
 ```sh
 aid login
+aid test-auth
 aid whoami
 aid logout
 ```
 
-The CLI generates a fresh PKCE verifier/challenge and random state per login, binds the callback to `127.0.0.1`, and validates callback state. Tokens are stored in the platform config directory with restrictive permissions where supported. Expiring sessions refresh automatically, concurrent refresh requests are deduplicated, and network requests have timeouts. Authenticated API requests are constrained to the configured issuer and reject unexpected redirects.
+The CLI generates a fresh PKCE verifier/challenge and random state per login, binds the callback to `127.0.0.1`, and validates callback state. Tokens are stored in the platform config directory with restrictive permissions where supported. Expiring sessions refresh automatically, concurrent refresh requests are serialized across processes, and network requests have timeouts. Authenticated API requests are constrained to the configured issuer and reject unexpected redirects. Run `aid test-auth` to make an authenticated request to the identity endpoint and verify that the stored session still works; it never prints tokens.
 
 Environment overrides:
 
@@ -162,6 +163,7 @@ aid sync <app-id>
 ```sh
 aid setup
 aid login
+aid test-auth
 aid logout
 aid whoami
 
