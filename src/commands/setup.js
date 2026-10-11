@@ -17,6 +17,7 @@ import { detectProject } from "../project/detect.js";
 
 const execFileAsync = promisify(execFile);
 const CONFIG_FILE = ".aid.json";
+const RECOVERY_FILE = ".aid-setup-recovery.json";
 const ANDROID_SDK_REPO = "aceyash-dev/ace-id-sdk";
 const ANDROID_SDK_RELEASE = "1.1";
 const ANDROID_SDK_ASSET = "library-release.aar";
@@ -28,7 +29,8 @@ export async function setup(args = []) {
     ({ values } = parseArgs({ args, options: {
       name: { type: "string", short: "n" }, redirect: { type: "string", short: "r" },
       scope: { type: "string", short: "s", multiple: true }, force: { type: "boolean", short: "f" },
-      interactive: { type: "boolean", short: "i" }, wizard: { type: "boolean", short: "w" }
+      interactive: { type: "boolean", short: "i" }, wizard: { type: "boolean", short: "w" },
+      recover: { type: "boolean" }
     }, strict: true }));
   } catch {
     throw new Error("Usage: aid setup [--interactive] [--name <name>] [--redirect <uri>] [--scope <scope>...] [--force]");
@@ -37,6 +39,11 @@ export async function setup(args = []) {
   showBanner();
   const project = await detectProject();
   const configPath = path.join(process.cwd(), CONFIG_FILE);
+  const recoveryPath = path.join(process.cwd(), RECOVERY_FILE);
+  if (values.recover) {
+    await recoverSetup(configPath, recoveryPath);
+    return;
+  }
   const interactive = Boolean(values.interactive || values.wizard);
 
   if (interactive && (!process.stdin.isTTY || !process.stdout.isTTY)) {
@@ -84,6 +91,23 @@ export async function setup(args = []) {
     body: JSON.stringify({ name: settings.name })
   });
 
+  let recovery = {
+    issuer: ISSUER,
+    app_id: app.id,
+    client_id: null,
+    created_at: new Date().toISOString(),
+    stage: "app-created"
+  };
+  try {
+    await writeRecovery(recoveryPath, recovery);
+  } catch (err) {
+    const cleanupFailures = await cleanupRemoteResources(app?.id, null);
+    if (cleanupFailures.length) {
+      warn(`Could not persist setup recovery state. Manually remove app ${app.id}; cleanup also failed: ${cleanupFailures.join("; ")}`);
+    }
+    throw new Error(`Could not record setup recovery state: ${err.message}`);
+  }
+
   let client;
   try {
     client = await apiJson("/clients", {
@@ -92,12 +116,28 @@ export async function setup(args = []) {
       body: JSON.stringify({ name: settings.name, redirect_uris: [settings.redirect], scopes: settings.scopes, public: true })
     });
   } catch (err) {
-    try {
-      await apiFetch(`/apps/${encodeURIComponent(app.id)}`, { method: "DELETE" });
-    } catch {
-      warn(`The client could not be created. App ${app.id} was not automatically removed.`);
+    const cleanupFailures = await cleanupRemoteResources(app?.id, null);
+    if (cleanupFailures.length) {
+      recovery = { ...recovery, stage: "cleanup-required" };
+      await writeRecovery(recoveryPath, recovery).catch(() => {});
+      warn(`Setup cleanup is incomplete. Run `aid setup --recover` to retry removal of app ${app.id}.`);
+    } else {
+      await removeRecovery(recoveryPath);
     }
     throw err;
+  }
+
+  recovery = { ...recovery, client_id: client.client_id, stage: "resources-created" };
+  try {
+    await writeRecovery(recoveryPath, recovery);
+  } catch (err) {
+    const cleanupFailures = await cleanupRemoteResources(app?.id, client?.client_id);
+    if (cleanupFailures.length) {
+      warn(`Could not record recovery state. Manually inspect app ${app.id} and client ${client.client_id}; cleanup failed: ${cleanupFailures.join("; ")}`);
+    } else {
+      await removeRecovery(recoveryPath);
+    }
+    throw new Error(`Could not record setup recovery state: ${err.message}`);
   }
 
   let sdkStatus = "not applicable";
@@ -118,8 +158,16 @@ export async function setup(args = []) {
       project_type: project.type, framework: project.label, sdk: project.sdk,
       sdk_path: project.sdkPath, sdk_version: project.sdkVersion
     });
+    await removeRecovery(recoveryPath);
   } catch (err) {
-    await cleanupRemoteResources(app?.id, client?.client_id);
+    const cleanupFailures = await cleanupRemoteResources(app?.id, client?.client_id);
+    if (cleanupFailures.length) {
+      recovery = { ...recovery, stage: "cleanup-required" };
+      await writeRecovery(recoveryPath, recovery).catch(() => {});
+      warn(`Setup cleanup is incomplete. Run `aid setup --recover` to retry removal of the created resources.`);
+    } else {
+      await removeRecovery(recoveryPath);
+    }
     throw new Error(`Could not write ${CONFIG_FILE}: ${err.message}`);
   }
 
@@ -166,20 +214,70 @@ function normalizeScopes(scopes) {
 }
 
 async function cleanupRemoteResources(appId, clientId) {
+  const failures = [];
   if (clientId) {
     try {
-      await apiFetch(`/clients/${encodeURIComponent(clientId)}`, { method: "DELETE" });
-    } catch {
-      warn(`Client ${clientId} could not be cleaned up automatically.`);
+      const response = await apiFetch(`/clients/${encodeURIComponent(clientId)}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 404) failures.push(`client ${clientId} (HTTP ${response.status})`);
+    } catch (err) {
+      failures.push(`client ${clientId} (${err.message})`);
     }
   }
   if (appId) {
     try {
-      await apiFetch(`/apps/${encodeURIComponent(appId)}`, { method: "DELETE" });
-    } catch {
-      warn(`App ${appId} could not be cleaned up automatically.`);
+      const response = await apiFetch(`/apps/${encodeURIComponent(appId)}`, { method: "DELETE" });
+      if (!response.ok && response.status !== 404) failures.push(`app ${appId} (HTTP ${response.status})`);
+    } catch (err) {
+      failures.push(`app ${appId} (${err.message})`);
     }
   }
+  for (const failure of failures) warn(`Cleanup failed for ${failure}.`);
+  return failures;
+}
+
+async function writeRecovery(file, state) {
+  await writeConfig(file, state);
+}
+
+async function removeRecovery(file) {
+  await fs.unlink(file).catch((err) => {
+    if (err.code !== "ENOENT") throw err;
+  });
+}
+
+async function recoverSetup(configPath, recoveryPath) {
+  let recovery;
+  try {
+    recovery = JSON.parse(await fs.readFile(recoveryPath, "utf8"));
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      console.log("No interrupted setup recovery record found.");
+      return;
+    }
+    throw new Error(`Setup recovery record is invalid. Inspect ${RECOVERY_FILE} before retrying.`);
+  }
+
+  if (recovery?.issuer !== ISSUER || typeof recovery.app_id !== "string" || !recovery.app_id) {
+    throw new Error(`Setup recovery record is invalid or belongs to another issuer. Inspect ${RECOVERY_FILE} manually.`);
+  }
+
+  let config = null;
+  try {
+    config = JSON.parse(await fs.readFile(configPath, "utf8"));
+  } catch {}
+  if (config?.issuer === recovery.issuer && config?.app_id === recovery.app_id &&
+      (!recovery.client_id || config?.client_id === recovery.client_id)) {
+    await removeRecovery(recoveryPath);
+    success("Setup configuration is already complete; cleared the recovery record without deleting resources.");
+    return;
+  }
+
+  const failures = await cleanupRemoteResources(recovery.app_id, recovery.client_id);
+  if (failures.length) {
+    throw new Error(`Setup recovery is incomplete. Fix the reported cleanup errors and rerun `aid setup --recover`.`);
+  }
+  await removeRecovery(recoveryPath);
+  success("Removed resources left behind by the interrupted setup.");
 }
 
 async function detectProjectName() {
