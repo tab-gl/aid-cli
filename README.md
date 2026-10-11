@@ -52,6 +52,8 @@ The interactive wizard lets you review the project name, redirect URI, and OAuth
 ```sh
 aid setup [--interactive] [--name <name>] [--redirect <uri>] [--scope <scope>...] [--force]
 aid setup --recover
+# In non-interactive environments, explicitly approve cleanup:
+aid setup --recover --force
 ```
 
 Examples:
@@ -64,7 +66,7 @@ aid setup --scope openid --scope profile --scope email
 aid setup --recover
 ```
 
-If setup is interrupted after creating remote resources, rerun `aid setup --recover` from the same project directory to retry safe cleanup. The recovery journal is local, ignored by Git, and checked against `.aid.json` so completed resources are not deleted.
+If setup is interrupted after creating remote resources, rerun `aid setup --recover` from the same project directory to retry safe cleanup. Interactive runs ask for confirmation before deleting remote resources; non-interactive runs require `--force`. The recovery journal is local, ignored by Git, and checked against `.aid.json` so completed resources are not deleted.
 
 ## Authentication
 
