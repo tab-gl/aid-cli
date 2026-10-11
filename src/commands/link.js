@@ -28,20 +28,33 @@ export async function link(args = []) {
   if (!appId) throw new Error("Usage: aid link <app_id> [--client <client_id>] [--force]");
 
   const app = await apiJson(`/apps/${encodeURIComponent(appId)}`);
-  if (!app?.id) throw new Error(`App ${appId} was returned without an ID.`);
+  if (!app || typeof app !== "object" || Array.isArray(app) || !app.id) {
+    throw new Error(`App ${appId} was returned without a valid ID.`);
+  }
+  if (String(app.id) !== String(appId)) {
+    throw new Error(`The API returned app ${app.id} instead of requested app ${appId}. No local changes were made.`);
+  }
 
   const configPath = path.join(process.cwd(), CONFIG_FILE);
-  if (!parsed.values.force && await fileExists(configPath)) {
+  const exists = await fileExists(configPath);
+  if (!parsed.values.force && exists) {
     throw new Error(`${CONFIG_FILE} already exists. Use "aid link ${appId} --force" to replace it.`);
   }
 
   const project = await detectProject();
   const existing = await readConfig(configPath);
-  // Keep the local link deterministic: remote app identity is the source of truth.
+  const sameApp = existing?.issuer === ISSUER && String(existing?.app_id || "") === String(app.id);
+  // Preserve app-specific settings only when relinking the same app. Switching
+  // apps must not silently retain a client ID or redirect URI from the old app.
   const config = {
+    ...(sameApp ? existing : {}),
     issuer: ISSUER,
-    app_id: app.id,
-    ...(parsed.values.client ? { client_id: parsed.values.client } : existing?.client_id ? { client_id: existing.client_id } : {}),
+    app_id: String(app.id),
+    ...(parsed.values.client
+      ? { client_id: parsed.values.client }
+      : sameApp && existing?.client_id
+        ? { client_id: existing.client_id }
+        : {}),
     project_type: project.type,
     framework: project.label,
     sdk: project.sdk,
@@ -60,7 +73,23 @@ export async function link(args = []) {
 }
 
 async function readConfig(file) {
-  try { return JSON.parse(await fs.readFile(file, "utf8")); } catch { return null; }
+  let raw;
+  try {
+    raw = await fs.readFile(file, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw new Error(`Could not read ${CONFIG_FILE}: ${err.message}`);
+  }
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch {
+    throw new Error(`${CONFIG_FILE} contains invalid JSON. Fix it before relinking; the file was left untouched.`);
+  }
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new Error(`${CONFIG_FILE} must contain a JSON object. The file was left untouched.`);
+  }
+  return config;
 }
 
 async function fileExists(file) {
