@@ -26,7 +26,7 @@ function normalizeIssuer(value) {
   if (url.username || url.password || url.search || url.hash) {
     throw new Error("AIDC_ISSUER must not include credentials, query parameters, or a fragment.");
   }
-  return url.origin;
+  return url.href.replace(/\/+$/, "");
 }
 
 function parsePort(value) {
@@ -49,8 +49,6 @@ function parsePositiveInt(value, fallback) {
 
 function normalizeScopes(value) {
   const scopes = (value || "openid profile email offline_access").trim();
-  if (!scopes || scopes.split(/\s+/).some((scope) => !scope)) {
-    throw new Error("AIDC_SCOPES must contain a space-separated list of scopes.");
-  }
+  if (!scopes) throw new Error("AIDC_SCOPES must contain a space-separated list of scopes.");
   return scopes;
 }
