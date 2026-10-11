@@ -267,14 +267,19 @@ async function recoverSetup(configPath, recoveryPath, force = false) {
 
   if (recovery?.issuer !== ISSUER || typeof recovery.app_id !== "string" || !recovery.app_id ||
       (recovery.client_id !== null && recovery.client_id !== undefined &&
-       (typeof recovery.client_id !== "string" || !recovery.client_id))) {
+       (typeof recovery.client_id !== "string" || !recovery.client_id)) ||
+      !["app-created", "resources-created", "cleanup-required"].includes(recovery.stage)) {
     throw new Error(`Setup recovery record is invalid or belongs to another issuer. Inspect ${RECOVERY_FILE} manually.`);
   }
 
   let config = null;
   try {
     config = JSON.parse(await fs.readFile(configPath, "utf8"));
-  } catch {}
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      throw new Error(`Could not safely inspect ${CONFIG_FILE}; recovery was not performed.`);
+    }
+  }
   if (config?.issuer === recovery.issuer && config?.app_id === recovery.app_id &&
       (!recovery.client_id || config?.client_id === recovery.client_id)) {
     await removeRecovery(recoveryPath);
