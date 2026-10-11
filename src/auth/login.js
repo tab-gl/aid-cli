@@ -16,6 +16,7 @@ import {
 
 import { waitForCallback } from "./callback.js";
 import { saveTokens } from "./tokens.js";
+import { readApiError } from "../api/errors.js";
 import { spinner } from "../ui/spinner.js";
 import { info } from "../ui/format.js";
 
@@ -75,8 +76,7 @@ export async function login() {
   }
 
   if (!response.ok) {
-    const text = await response.text();
-    const detail = text.length > 500 ? `${text.slice(0, 500)}…` : text;
+    const detail = await readApiError(response);
     s.fail(`Token exchange failed (${response.status}).`);
     throw new Error(`Token exchange failed (${response.status}): ${detail}`);
   }
