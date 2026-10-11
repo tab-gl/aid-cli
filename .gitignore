@@ -1,13 +1,16 @@
 # Dependencies
 node_modules/
-.npmignore 
 
-# Build artifacts
+# Local packages and build artifacts
 *.tgz
+.npmignore
 
-# Environment
+# Secrets and local configuration
 .env
 .env.*
+.aid.json
+*.pem
+*.key
 
 # Local runtime
 .cache/
