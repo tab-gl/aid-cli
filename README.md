@@ -45,13 +45,7 @@ For a guided flow:
 aid setup --interactive
 ```
 
-The interactive wizard lets you review:
-
-- Project name
-- Redirect URI
-- OAuth scopes
-
-It also asks before replacing an existing `.aid.json`.
+The interactive wizard lets you review the project name, redirect URI, and OAuth scopes. It also asks before replacing an existing `.aid.json`.
 
 ### Setup options
 
@@ -78,17 +72,7 @@ aid whoami
 aid logout
 ```
 
-The CLI:
-
-- Generates a fresh PKCE verifier/challenge for every login.
-- Uses a cryptographically random state value and validates it on callback.
-- Binds the local callback server to `127.0.0.1`.
-- Stores tokens in the platform configuration directory with restrictive permissions where supported.
-- Refreshes expiring sessions automatically.
-- Deduplicates concurrent refresh requests so multiple CLI operations do not race to rotate a refresh token.
-- Clears invalid sessions after rejected refresh/API authentication.
-- Applies request timeouts so a dead network cannot leave the CLI hanging forever.
-- Never sends bearer tokens to a different origin than the configured Ace ID issuer.
+The CLI generates a fresh PKCE verifier/challenge and random state per login, binds the callback to `127.0.0.1`, and validates callback state. Tokens are stored in the platform config directory with restrictive permissions where supported. Expiring sessions refresh automatically, concurrent refresh requests are deduplicated, and network requests have timeouts. Authenticated API requests are constrained to the configured issuer and reject unexpected redirects.
 
 Environment overrides:
 
@@ -102,45 +86,19 @@ AIDC_REFRESH_LEEWAY_MS=60000
 AIDC_REQUEST_TIMEOUT_MS=15000
 ```
 
-`AIDC_ISSUER` must use HTTPS unless it points to localhost.
+`AIDC_ISSUER` must use HTTPS unless it points to localhost. A path prefix in the issuer URL is preserved for authentication and API endpoints.
 
 ## SDK compatibility
 
-The CLI is **SDK-version agnostic**.
+The CLI is **SDK-version agnostic**. It does not require the CLI version to match your Ace ID SDK version. Existing JavaScript SDK installations are detected by package name, regardless of their installed version.
 
-It does not require the CLI version to match your Ace ID SDK version. Existing SDK installations are detected by package name, regardless of their installed version.
-
-For JavaScript projects, the CLI targets the package:
-
-```text
-ace-id-sdk
-```
-
-It does not pin the CLI to a specific JavaScript SDK release.
-
-For Android, the CLI uses the verified native SDK artifact for its automatic Android setup path. This is separate from JavaScript package-version compatibility.
-
-The CLI itself does not bundle an SDK runtime. Your application owns its SDK dependency and its upgrade schedule.
+For JavaScript projects, the CLI targets `ace-id-sdk` and does not pin the CLI to a specific JavaScript SDK release. For Android, automatic setup uses a pinned, hash-verified native SDK artifact. Your application owns its SDK dependency and its upgrade schedule.
 
 ## Project detection
 
 Setup detects projects from the **current working directory only**. It does not guess from parent workspaces or unrelated folders.
 
-Supported detection includes:
-
-- Next.js
-- React
-- Vite
-- Vanilla JavaScript
-- Android Java
-- Android Kotlin
-
-Package-manager detection supports:
-
-- npm
-- pnpm
-- Yarn
-- Bun
+Supported detection includes Next.js, React, Vite, vanilla JavaScript, Android Java, and Android Kotlin. Package-manager detection supports npm, pnpm, Yarn, and Bun.
 
 The CLI is designed to work across Windows, macOS, Linux, WSL, and terminal environments such as Termux, provided Node.js 18+ is available.
 
@@ -160,15 +118,10 @@ aid link <app-id>
 aid sync
 ```
 
-`app` is accepted for compatibility:
+`app` is accepted for compatibility. Common application actions also route to the canonical `apps` command:
 
 ```sh
 aid app list
-```
-
-Common application actions also have smart shorthand routing. These are normalized to the canonical `apps` command:
-
-```sh
 aid list
 aid create --name "Web"
 aid get <app-id>
@@ -176,41 +129,27 @@ aid update <app-id> --name "Web Production"
 aid delete <app-id>
 ```
 
-For example, `aid delete <app-id>` executes as `aid apps delete <app-id>`. This is command normalization, not shell-level text rewriting, so it works consistently across terminals.
+For example, `aid delete <app-id>` executes as `aid apps delete <app-id>`. This is argument normalization, not shell-level text rewriting.
 
 ## Link and sync
 
-Use `link` to bind an existing Ace ID application to the current local folder and create `.aid.json`:
+Use `link` to bind an existing Ace ID application to the current folder and create `.aid.json`:
 
 ```sh
 aid link <app-id>
-```
-
-Optionally record a specific OAuth client:
-
-```sh
 aid link <app-id> --client <client-id>
 ```
 
-If `.aid.json` already exists, linking refuses to overwrite it unless you explicitly use:
+If `.aid.json` already exists, linking refuses to overwrite it unless you explicitly use `--force`.
 
-```sh
-aid link <app-id> --force
-```
-
-`sync` refreshes the application recorded in the current folder:
+`sync` refreshes the application recorded in the current folder, or switches the current folder to a supplied application ID:
 
 ```sh
 aid sync
-```
-
-You can also switch the current folder to another application:
-
-```sh
 aid sync <app-id>
 ```
 
-`link` and `sync` do not silently create remote applications or clients. They only validate/read the existing application and maintain the local link.
+`link` and `sync` do not silently create remote applications or clients. They validate/read existing resources and maintain the local link.
 
 ## Commands
 
@@ -234,30 +173,11 @@ aid help
 
 ## Configuration
 
-Project configuration is stored in:
-
-```text
-.aid.json
-```
-
-Do not commit this file if your workflow treats its identifiers or local configuration as sensitive. The CLI writes it with restrictive permissions where the operating system supports them.
-
-User authentication data is stored separately from project configuration.
+Project configuration is stored in `.aid.json`. Do not commit it if your workflow treats its identifiers or local configuration as sensitive. The CLI writes it with restrictive permissions where the operating system supports them. User authentication data is stored separately.
 
 ## Security model
 
-The CLI is designed around a few simple rules:
-
-1. **PKCE for browser login**
-2. **State validation for callback CSRF protection**
-3. **Loopback-only callback binding**
-4. **Origin validation for API requests**
-5. **Bounded network requests**
-6. **Atomic local token/config writes**
-7. **Strict token-shape validation**
-8. **No shell interpolation for package installation**
-9. **Pinned and hash-verified Android artifacts**
-10. **No SDK version coupling for JavaScript projects**
+The CLI uses PKCE, one-time callback state validation, loopback-only callback binding, issuer-origin and path checks, redirect rejection for authenticated API/token requests, bounded network operations, atomic local token/config writes, strict token-shape validation, argument-array process execution, and pinned/hash-verified Android artifacts.
 
 ## Troubleshooting
 
@@ -276,17 +196,20 @@ aid setup --force
 
 If browser launch is unavailable, `aid login` prints the authorization URL so it can be opened manually.
 
-For CI or headless environments, authenticate using the supported non-interactive authentication flow provided by your Ace ID deployment rather than trying to fake a browser session.
+For CI or headless environments, use the supported non-interactive authentication flow provided by your Ace ID deployment.
 
 ## Development
 
 ```sh
 npm install
+npm run check
+npm test
 node bin/aid.js --help
+node bin/aid.js --version
 npm pack --dry-run
 ```
 
-CI also syntax-checks every JavaScript file under `bin/` and `src/`.
+CI syntax-checks JavaScript files, runs regression tests, validates package generation, and smoke-tests CLI aliases.
 
 ## Changelog
 
