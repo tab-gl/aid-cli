@@ -25,7 +25,6 @@ export async function login() {
   const state = generateState();
 
   const authorizeUrl = new URL(`${ISSUER}/auth`);
-
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("client_id", CLIENT_ID);
   authorizeUrl.searchParams.set("redirect_uri", REDIRECT_URI);
@@ -42,13 +41,8 @@ export async function login() {
 
   openBrowser(authorizeUrl.toString());
 
-  const s = spinner(
-    "Waiting for you to authorize in the browser…",
-    { interval: 100 }
-  ).start();
-
+  const s = spinner("Waiting for you to authorize in the browser…", { interval: 100 }).start();
   let code;
-
   try {
     code = await codePromise;
   } catch (err) {
@@ -59,13 +53,11 @@ export async function login() {
   s.update("Exchanging authorization code for tokens…");
 
   let response;
-
   try {
     response = await fetchWithTimeout(`${ISSUER}/token`, {
       method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded"
-      },
+      redirect: "error",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
@@ -76,7 +68,10 @@ export async function login() {
     });
   } catch (err) {
     s.fail("Network error during token exchange.");
-    throw err;
+    if (err.name === "TypeError") {
+      throw new Error("Token endpoint request failed or was redirected unexpectedly.");
+    }
+    throw new Error(`Token exchange request failed: ${err.message}`);
   }
 
   if (!response.ok) {
@@ -106,8 +101,7 @@ export async function login() {
     id_token: body.id_token,
     token_type: body.token_type || "Bearer",
     scope: body.scope,
-    expires_at:
-      Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600) * 1000
+    expires_at: Date.now() + (Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 3600) * 1000
   });
 
   s.succeed("Signed in. Tokens stored.");
@@ -115,7 +109,6 @@ export async function login() {
 
 function openBrowser(url) {
   const platform = process.platform;
-
   let cmd;
   let args;
 
@@ -154,7 +147,6 @@ function hasCommand(bin) {
     : spawnSync("sh", ["-c", `command -v ${bin}`], { stdio: "ignore" });
   return result.status === 0;
 }
-
 
 async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
