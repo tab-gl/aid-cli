@@ -15,7 +15,7 @@ export async function apiFetch(path, options = {}) {
   try {
     response = await fetchWithTimeout(url, { ...options, headers, redirect: "error" });
   } catch (err) {
-    if (err.name === "AbortError") {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
       throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
     }
     if (err.name === "TypeError" && /redirect/i.test(err.message)) {
@@ -41,17 +41,16 @@ export async function apiJson(path, options = {}) {
 
   try {
     return await response.json();
-  } catch {
+  } catch (err) {
+    if (err.name === "AbortError" || err.name === "TimeoutError") {
+      throw new Error(`Response body timed out after ${REQUEST_TIMEOUT_MS / 1000}s.`);
+    }
     throw new Error(`Request succeeded but returned invalid JSON (HTTP ${response.status}).`);
   }
 }
 
 async function fetchWithTimeout(url, options) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
+  // Keep the deadline active while the response body is consumed, not just
+  // until headers arrive. Otherwise a stalled stream can hang the CLI forever.
+  return fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 }
