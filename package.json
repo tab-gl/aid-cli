@@ -1,6 +1,6 @@
 {
   "name": "ace-id",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Ace Identity Console — CLI for AIDC applications and OAuth clients",
   "type": "module",
   "bin": {
@@ -8,25 +8,13 @@
     "ace-id": "./bin/ace-id.js",
     "aidc": "./bin/aidc.js"
   },
-  "files": [
-    "bin/",
-    "src/",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
-  "keywords": [
-    "aid",
-    "aidc",
-    "ace-base",
-    "ace-id",
-    "oidc",
-    "oauth",
-    "cli"
-  ],
+  "files": ["bin/", "src/", "README.md", "CHANGELOG.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "keywords": ["aid", "aidc", "ace-base", "ace-id", "oidc", "oauth", "cli"],
   "author": "The Ace Base",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "check": "node --check bin/aid.js && find bin src -type f -name '*.js' -exec node --check {} \\;",
+    "test": "node --test"
+  }
 }
