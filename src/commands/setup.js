@@ -99,6 +99,7 @@ export async function setup(args = []) {
   }
   if (!tokens?.access_token) {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
+      progress?.fail("Authentication requires a terminal");
       throw new Error("Not signed in. Run `aid login` first.");
     }
     try {
@@ -214,7 +215,11 @@ export async function setup(args = []) {
     warn(`SDK setup skipped: ${err.message}`);
     sdkStatus = "skipped";
   }
-  progress?.complete(5, `SDK step: ${sdkStatus}`);
+  if (["not applicable", "skipped", "install failed"].includes(sdkStatus)) {
+    progress?.skip(5, `SDK step: ${sdkStatus}`);
+  } else {
+    progress?.complete(5, `SDK step: ${sdkStatus}`);
+  }
 
   progress?.start(6);
   try {
