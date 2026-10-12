@@ -5,8 +5,8 @@ import { filterResources, parseListOptions } from "../list-options.js";
 export async function list(args = []) {
   const options = parseListOptions(args, "Usage: aid clients list [--search <text>] [--limit <n>] [--json]");
   const response = await apiJson("/clients");
-  if (!Array.isArray(response)) {
-    throw new Error("The API returned an unexpected OAuth client list. Expected an array.");
+  if (!Array.isArray(response) || response.some((client) => !client || typeof client !== "object" || Array.isArray(client))) {
+    throw new Error("The API returned an unexpected OAuth client list. Expected an array of client objects.");
   }
 
   const clients = filterResources(
