@@ -246,7 +246,7 @@ test("sync dry-run reports exact metadata changes without writing the config", a
   const result = await runSync(state.root, state.env, ["--dry-run"]);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Application name: "Old app name" -> "Remote app name"/);
-  assert.match(result.stdout, /Redirect URI: "https:\\/\\/example.test\\/old-callback" -> "https:\\/\\/example.test\\/new-callback"/);
+  assert.ok(result.stdout.includes('Redirect URI: "https://example.test/old-callback" -> "https://example.test/new-callback"'));
   assert.ok(result.stdout.includes('Scopes: ["openid"] -> ["openid","profile"]'));
   assert.match(result.stdout, /No files were changed/);
   assert.equal(await fs.readFile(configPath, "utf8"), original);
