@@ -56,18 +56,30 @@ test("aid test-auth verifies the stored session against the identity endpoint", 
     expires_at: Date.now() + 60_000
   }), { mode: 0o600 });
 
-  const result = await runCli(["test-auth"], {
+  const env = {
     ...process.env,
     AIDC_ISSUER: `http://127.0.0.1:${server.address().port}`,
     AIDC_REFRESH_LEEWAY_MS: "1000",
     XDG_CONFIG_HOME: configHome
-  });
+  };
+  const result = await runCli(["test-auth"], env);
 
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Authentication test passed/);
   assert.match(result.stdout, /CLI Test User/);
   assert.match(result.stdout, /user-test-123/);
   assert.doesNotMatch(result.stdout, /test-access-token/);
+
+  const jsonResult = await runCli(["test-auth", "--json"], env);
+  assert.equal(jsonResult.code, 0, jsonResult.stderr);
+  assert.deepEqual(JSON.parse(jsonResult.stdout), {
+    status: "ok",
+    issuer: env.AIDC_ISSUER,
+    client_id: "aidc-cli",
+    account: "CLI Test User",
+    subject: "user-test-123"
+  });
+  assert.doesNotMatch(jsonResult.stdout, /test-access-token/);
 });
 
 test("aid test-auth explains when no session is stored", async (t) => {
