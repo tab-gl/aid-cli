@@ -7,11 +7,10 @@ All notable changes to the Ace ID CLI are documented here.
 ### Security and reliability
 - Made help, tables, field summaries, and command descriptions responsive to narrow terminal widths without truncating long resource IDs; improved spinner lifecycle and stream-specific color handling.
 - Reduced project detection startup work with parallel filesystem checks and lower-memory Android language detection.
-- Made `aid sync` validate remote app/client identity and metadata, remove explicitly cleared stale fields, preserve unrelated settings, and detect local config edits during remote reads.
-- Improved interactive setup progress with a visible active-step percentage and distinct skipped-step status; report missing-terminal authentication failures as a failed step.
-- Added a step-based progress display to interactive setup and validation for remote app/client creation responses.
-- Improved `sync` to validate issuer and remote resource data, refresh linked app/client metadata, preserve unrelated settings, and leave malformed or mismatched config untouched.
-- Prevented relinking from carrying a stale OAuth client or redirect configuration across different applications.
+- Added step-based progress to interactive setup, including active-step percentage, skipped/failure states, and validation of remote app/client creation responses.
+- Made `aid sync` validate issuer and remote app/client identity, refresh linked metadata, remove explicitly cleared stale fields, preserve unrelated settings, and detect local edits during remote reads.
+- Prevented relinking from carrying a stale OAuth client or redirect configuration across different applications; verify the selected OAuth client belongs to the linked app before writing `.aid.json`.
+- Use collision-resistant temporary filenames for setup and recovery writes so concurrent runs cannot overwrite one another's temporary files.
 - Added `aid test-auth` to verify the stored session against the authenticated identity endpoint without exposing credentials.
 - Serialized token writes and refreshes across CLI processes to protect rotating refresh tokens.
 - Avoided clearing a newer session when a request made with an older access token receives HTTP 401.
