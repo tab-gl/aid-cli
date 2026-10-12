@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { parseArgs } from "node:util";
 import { apiJson } from "../api/client.js";
 import { ISSUER } from "../auth/config.js";
 import { success, fields } from "../ui/format.js";
@@ -9,8 +10,21 @@ import { link } from "./link.js";
 const CONFIG_FILE = ".aid.json";
 
 export async function sync(args = []) {
-  const [appId, ...extra] = args;
-  if (extra.length) throw new Error("Usage: aid sync [<app_id>]");
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args,
+      options: { "dry-run": { type: "boolean" } },
+      strict: true,
+      allowPositionals: true
+    });
+  } catch {
+    throw new Error("Usage: aid sync [<app_id>] [--dry-run]");
+  }
+  const [appId, ...extra] = parsed.positionals;
+  const dryRun = parsed.values["dry-run"] === true;
+  if (extra.length || (appId && dryRun)) throw new Error("Usage: aid sync [<app_id>] [--dry-run]");
+
   const configPath = path.join(process.cwd(), CONFIG_FILE);
 
   if (appId) {
@@ -72,8 +86,8 @@ export async function sync(args = []) {
     }
   }
 
-  // Apply only validated remote fields. If the server explicitly clears a field,
-  // remove stale local metadata; if it omits a field entirely, leave it alone.
+  // Build the target from remote fields, changing only metadata the server
+  // actually supplied. Unrelated local project settings remain untouched.
   const next = { ...config, app_id: app.id };
   if (Object.hasOwn(app, "name")) {
     if (typeof app.name === "string" && app.name.trim()) next.app_name = app.name;
@@ -90,7 +104,28 @@ export async function sync(args = []) {
   if (client && Object.hasOwn(client, "scopes")) {
     next.scopes = [...new Set(client.scopes.map((scope) => scope.trim()).filter(Boolean))];
   }
-  next.synced_at = new Date().toISOString();
+
+  const changes = diffMetadata(config, next);
+  console.log("\\nSYNC PLAN");
+  if (!changes.length) {
+    console.log("  No metadata changes detected. Local configuration is already up to date.");
+    fields([
+      ["Application ID", app.id],
+      ["Application", app.name || app.id],
+      ...(client ? [["Client ID", client.client_id]] : []),
+      ["Changes", "none"],
+      ["Config", CONFIG_FILE]
+    ]);
+    return;
+  }
+
+  for (const change of changes) {
+    console.log(`  ${change.field}: ${change.before} -> ${change.after}`);
+  }
+  if (dryRun) {
+    console.log("\\nDry run complete. No files were changed.");
+    return;
+  }
 
   // Avoid overwriting edits made while remote requests were in flight.
   const currentRaw = await fs.readFile(configPath, "utf8").catch((err) => {
@@ -101,6 +136,7 @@ export async function sync(args = []) {
     throw new Error(`${CONFIG_FILE} changed while sync was running. No local changes were written; rerun the sync.`);
   }
 
+  next.synced_at = new Date().toISOString();
   await writeConfig(configPath, next);
 
   success(`Synced ${app.name || app.id}.`);
@@ -108,11 +144,38 @@ export async function sync(args = []) {
     ["Application ID", app.id],
     ["Application", app.name || app.id],
     ...(client ? [["Client ID", client.client_id]] : []),
-    ["Remote metadata", "up to date"],
+    ["Changed fields", String(changes.length)],
     ["Project settings", "preserved"],
     ["Last synced", next.synced_at],
     ["Config", CONFIG_FILE]
   ]);
+}
+
+function diffMetadata(current, next) {
+  const keys = [
+    ["app_name", "Application name"],
+    ["app_description", "Application description"],
+    ["redirect_uri", "Redirect URI"],
+    ["scopes", "Scopes"]
+  ];
+  const display = (value, exists) => {
+    if (!exists) return "(unset)";
+    if (Array.isArray(value)) return JSON.stringify(value);
+    if (typeof value === "string") return JSON.stringify(value);
+    return JSON.stringify(value);
+  };
+  return keys.flatMap(([key, label]) => {
+    const beforeExists = Object.hasOwn(current, key);
+    const afterExists = Object.hasOwn(next, key);
+    const before = current[key];
+    const after = next[key];
+    if (beforeExists === afterExists && JSON.stringify(before) === JSON.stringify(after)) return [];
+    return [{
+      field: label,
+      before: display(before, beforeExists),
+      after: display(after, afterExists)
+    }];
+  });
 }
 
 async function readConfig(file) {
