@@ -89,7 +89,7 @@ export async function sync(args = []) {
     throw new Error(`Could not re-check ${CONFIG_FILE} before writing: ${err.message}`);
   });
   if (currentRaw !== snapshot.raw) {
-    throw new Error(`${CONFIG_FILE} changed while sync was running. No local changes were written; rerun `aid sync`.`);
+    throw new Error(`${CONFIG_FILE} changed while sync was running. No local changes were written; rerun the sync.`);
   }
 
   await writeConfig(configPath, next);
