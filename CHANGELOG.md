@@ -5,6 +5,7 @@ All notable changes to the Ace ID CLI are documented here.
 ## [Unreleased]
 
 ### Security and reliability
+- Improved desktop terminal tables with proportionally sized columns and wrapped cells; account for Unicode display width when aligning IDs and labels, and make setup progress bars and labels adapt to the terminal width.
 - Made help, tables, field summaries, and command descriptions responsive to narrow terminal widths without truncating long resource IDs; improved spinner lifecycle and stream-specific color handling.
 - Reduced project detection startup work with parallel filesystem checks and lower-memory Android language detection; report malformed or unreadable project manifests instead of silently misclassifying the project.
 - Added step-based progress to interactive setup, including active-step percentage, skipped/failure states, and validation of remote app/client creation responses.
