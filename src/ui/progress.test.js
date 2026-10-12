@@ -55,3 +55,15 @@ test("step progress rejects invalid indices and empty step lists", () => {
   assert.throws(() => progress.complete(-1), /out of range/);
   assert.throws(() => createStepProgress([]), /at least one step/);
 });
+
+test("step progress wraps long labels to fit narrow terminals", () => {
+  const output = capture();
+  output.stream.columns = 30;
+  const progress = createStepProgress(["Create application"], { stream: output.stream });
+
+  progress.start(0, "Creating the remote application and configuring SDK");
+  const lines = output.read().replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "").trimEnd().split("\n");
+  assert.ok(lines.length > 1, output.read());
+  assert.ok(lines.every((line) => line.length <= 30), output.read());
+  assert.match(output.read(), /Creating the remote/);
+});
