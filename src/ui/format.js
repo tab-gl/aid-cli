@@ -203,14 +203,17 @@ function allocateColumnWidths(naturalWidths, headers, available) {
   );
   let remaining = available - widths.reduce((sum, value) => sum + value, 0);
 
+  // Grow columns proportionally instead of giving nearly all spare width to
+  // the first long identifier and leaving descriptive columns too narrow.
   while (remaining > 0) {
     let target = -1;
-    let largestNeed = 0;
+    let largestRatio = 0;
     for (let index = 0; index < widths.length; index++) {
-      const need = naturalWidths[index] - widths[index];
-      if (need > largestNeed) {
+      if (widths[index] >= naturalWidths[index]) continue;
+      const ratio = naturalWidths[index] / Math.max(1, widths[index]);
+      if (ratio > largestRatio) {
         target = index;
-        largestNeed = need;
+        largestRatio = ratio;
       }
     }
     if (target < 0) break;
