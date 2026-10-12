@@ -355,3 +355,9 @@ export function commandList(rows) {
   }
   console.log("");
 }
+
+/* ── Machine-readable output ───────────────── */
+
+export function jsonOutput(value) {
+  console.log(JSON.stringify(value, null, 2));
+}
