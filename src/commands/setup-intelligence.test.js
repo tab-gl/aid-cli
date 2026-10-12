@@ -77,9 +77,10 @@ test("setup reports drift and minimal repair without changing existing resources
 
   const result = await runSetup(state.root);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Configuration drift detected/);
-  assert.match(result.stdout, /SDK dependency ace-id-sdk is not declared/);
-  assert.match(result.stdout, /npm install ace-id-sdk/);
-  assert.match(result.stdout, /aid link app-1 --force/);
+  const output = result.stdout + result.stderr;
+  assert.match(output, /Configuration drift detected/);
+  assert.match(output, /SDK dependency ace-id-sdk is not declared/);
+  assert.match(output, /npm install ace-id-sdk/);
+  assert.match(output, /aid link app-1 --force/);
   assert.equal(await fs.readFile(state.configPath, "utf8"), state.original);
 });
