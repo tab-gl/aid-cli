@@ -67,7 +67,7 @@ test("desktop terminals keep long resource IDs in an aligned table", () => {
     [{ header: "CLIENT ID", value: (row) => row.id }, { header: "NAME", value: (row) => row.name }]
   ));
   assert.match(output, /CLIENT ID\s+NAME/);
-  assert.match(output, /Desktop\\s+application/);
+  assert.match(output, /Desktop\s+application/);
   assert.doesNotMatch(output, /NAME:/);
   assert.ok(output.split("\n").every((line) => line.length <= 80), output);
 });
