@@ -4,6 +4,11 @@ All notable changes to the Ace ID CLI are documented here.
 
 ## [Unreleased]
 
+### Features and workflow
+- Setup now inspects existing project configuration and JavaScript SDK declared/installed versions, reports drift, and recommends minimal repairs rather than recreating remote resources by default.
+- OAuth client listings resolve application ownership and flag orphaned or mislinked clients plus redirect URI mismatches for the locally linked client.
+- `aid sync` prints an exact metadata change plan, supports `--dry-run`, updates only changed remote metadata, and avoids rewriting `.aid.json` when nothing changed.
+
 ### Security and reliability
 - Added `--json` output to read-only app/client list and detail commands, `whoami`, and `test-auth`; list commands also support case-insensitive `--search` and `--limit`. Client JSON output intentionally omits secret/token fields.
 - `aid sync` now fetches linked application and OAuth client metadata concurrently, reducing latency while preserving validation-before-write behavior.
