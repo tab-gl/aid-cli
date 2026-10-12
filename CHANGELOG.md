@@ -5,6 +5,8 @@ All notable changes to the Ace ID CLI are documented here.
 ## [Unreleased]
 
 ### Security and reliability
+- Added `--json` output to read-only app/client list and detail commands, `whoami`, and `test-auth`; list commands also support case-insensitive `--search` and `--limit`. Client JSON output intentionally omits secret/token fields.
+- `aid sync` now fetches linked application and OAuth client metadata concurrently, reducing latency while preserving validation-before-write behavior.
 - Replaced the Unix-only syntax-check shell pipeline with a dependency-free Node.js checker so the development check also works on Windows.
 - Improved desktop terminal tables with proportionally sized columns and wrapped cells; account for Unicode display width when aligning IDs and labels, and make setup progress bars and labels adapt to the terminal width.
 - Made help, tables, field summaries, and command descriptions responsive to narrow terminal widths without truncating long resource IDs; improved spinner lifecycle and stream-specific color handling.
