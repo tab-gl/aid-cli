@@ -91,7 +91,7 @@ function printHelp() {
     ["login", "Sign in via Ace ID"], ["logout", "Sign out"],
     ["whoami [--json]", "Show signed-in account"], ["test-auth [--json]", "Verify the current session; supports JSON output"], ["apps", "Manage applications"],
     ["link", "Link an application to this folder and write .aid.json"],
-    ["sync", "Refresh the linked application in this folder"],
+    ["sync [--dry-run]", "Preview or apply remote metadata changes for this folder"],
     ["clients", "Manage OAuth clients"], ["version", "Show CLI version"], ["help", "Show this message"]
   ]);
   console.log("");
@@ -113,12 +113,12 @@ function printHelp() {
   console.log("  " + dim("PROJECT LINKING"));
   commandList([
     ["link <app_id>", "Link an existing app to the current folder"], ["link <app_id> --client <client_id>", "Link an app and record an OAuth client"],
-    ["sync", "Refresh the app recorded in .aid.json"], ["sync <app_id>", "Replace the current link with an app"]
+    ["sync [--dry-run]", "Preview or apply metadata changes"], ["sync <app_id>", "Replace the current link with an app"]
   ]);
   console.log("");
   console.log("  " + dim("CLIENTS SUBCOMMANDS"));
   commandList([
-    ["clients list", "List clients"], ["clients create --name <n> --redirect <uri>", "Create a client"],
+    ["clients list", "List clients with app ownership and link diagnostics"], ["clients create --name <n> --redirect <uri>", "Create a client"],
     ["clients get <client_id>", "Show one client"], ["clients delete <client_id>", "Delete a client"],
     ["clients rotate-secret <client_id>", "Rotate a client secret"]
   ]);
