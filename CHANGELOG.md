@@ -5,6 +5,8 @@ All notable changes to the Ace ID CLI are documented here.
 ## [Unreleased]
 
 ### Security and reliability
+- Made help, tables, field summaries, and command descriptions responsive to narrow terminal widths without truncating long resource IDs; improved spinner lifecycle and stream-specific color handling.
+- Reduced project detection startup work with parallel filesystem checks and lower-memory Android language detection.
 - Made `aid sync` validate remote app/client identity and metadata, remove explicitly cleared stale fields, preserve unrelated settings, and detect local config edits during remote reads.
 - Improved interactive setup progress with a visible active-step percentage and distinct skipped-step status; report missing-terminal authentication failures as a failed step.
 - Added a step-based progress display to interactive setup and validation for remote app/client creation responses.
