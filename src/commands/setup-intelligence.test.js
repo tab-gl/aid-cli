@@ -84,3 +84,26 @@ test("setup reports drift and minimal repair without changing existing resources
   assert.match(output, /aid link app-1 --force/);
   assert.equal(await fs.readFile(state.configPath, "utf8"), state.original);
 });
+
+
+test("setup detects an installed SDK version outside the declared range", async (t) => {
+  const state = await projectFixture(t, {
+    packageJson: { name: "web-project", dependencies: { next: "^15.0.0", "ace-id-sdk": "^2.0.0" } },
+    installedSdk: "3.0.0",
+    config: {
+      issuer: "https://identity.ace-base.cc",
+      app_id: "app-1",
+      client_id: "client-1",
+      project_type: "next",
+      framework: "Next.js",
+      sdk: "ace-id-sdk"
+    }
+  });
+
+  const result = await runSetup(state.root);
+  const output = result.stdout + result.stderr;
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(output, /Installed SDK version 3\.0\.0 does not satisfy declared range \^2\.0\.0/);
+  assert.match(output, /npm install ace-id-sdk/);
+  assert.equal(await fs.readFile(state.configPath, "utf8"), state.original);
+});
