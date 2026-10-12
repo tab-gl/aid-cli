@@ -60,3 +60,24 @@ test("command list wraps descriptions to fit mobile terminal widths", () => {
 test("table rejects unexpected API response shapes with a useful error", () => {
   assert.throws(() => table({ items: [] }, [{ header: "ID", value: (row) => row.id }]), /unexpected list response/);
 });
+
+test("desktop terminals keep long resource IDs in an aligned table", () => {
+  const output = renderAtWidth(80, () => table(
+    [{ id: "client_".padEnd(72, "x"), name: "Desktop application" }],
+    [{ header: "CLIENT ID", value: (row) => row.id }, { header: "NAME", value: (row) => row.name }]
+  ));
+  assert.match(output, /CLIENT ID\s+NAME/);
+  assert.match(output, /Desktop application/);
+  assert.doesNotMatch(output, /NAME:/);
+  assert.ok(output.split("\n").every((line) => line.length <= 80), output);
+});
+
+test("desktop table sizing handles wide Unicode characters without losing values", () => {
+  const output = renderAtWidth(80, () => table(
+    [{ id: "应用程序🧪", name: "Ace Identity 客户端" }],
+    [{ header: "ID", value: (row) => row.id }, { header: "NAME", value: (row) => row.name }]
+  ));
+  assert.match(output, /应用程序🧪/);
+  assert.match(output, /Ace Identity 客户端/);
+  assert.match(output, /ID\s+NAME/);
+});
