@@ -28,7 +28,7 @@ export async function link(args = []) {
   if (!appId) throw new Error("Usage: aid link <app_id> [--client <client_id>] [--force]");
 
   const app = await apiJson(`/apps/${encodeURIComponent(appId)}`);
-  if (!app || typeof app !== "object" || Array.isArray(app) || !app.id) {
+  if (!app || typeof app !== "object" || Array.isArray(app) || typeof app.id !== "string" || !app.id.trim()) {
     throw new Error(`App ${appId} was returned without a valid ID.`);
   }
   if (String(app.id) !== String(appId)) {
@@ -61,6 +61,23 @@ export async function link(args = []) {
     sdk_path: project.sdkPath,
     sdk_version: project.sdkVersion
   };
+
+  if (config.client_id !== undefined) {
+    const client = await apiJson(`/clients/${encodeURIComponent(config.client_id)}`);
+    if (!client || typeof client !== "object" || Array.isArray(client) ||
+        client.client_id !== config.client_id ||
+        (client.app_id !== undefined && client.app_id !== null && String(client.app_id) !== String(app.id))) {
+      throw new Error("The OAuth client is invalid or belongs to another application. No local changes were made.");
+    }
+    if (Object.hasOwn(client, "redirect_uris") &&
+        (!Array.isArray(client.redirect_uris) || client.redirect_uris.some((uri) => typeof uri !== "string"))) {
+      throw new Error("The OAuth client returned invalid redirect URIs. No local changes were made.");
+    }
+    if (Object.hasOwn(client, "scopes") &&
+        (!Array.isArray(client.scopes) || client.scopes.some((scope) => typeof scope !== "string"))) {
+      throw new Error("The OAuth client returned invalid scopes. No local changes were made.");
+    }
+  }
 
   await writeConfig(configPath, config);
   success(`Linked ${app.name || app.id} to this folder.`);
