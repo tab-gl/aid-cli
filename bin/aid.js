@@ -89,7 +89,7 @@ function printHelp() {
   commandList([
     ["setup", "Set up a project; --recover cleans interrupted setup (--force confirms)"], ["init", "Alias for setup"],
     ["login", "Sign in via Ace ID"], ["logout", "Sign out"],
-    ["whoami", "Show signed-in account"], ["test-auth", "Verify the current session against the identity API"], ["apps", "Manage applications"],
+    ["whoami [--json]", "Show signed-in account"], ["test-auth [--json]", "Verify the current session; supports JSON output"], ["apps", "Manage applications"],
     ["link", "Link an application to this folder and write .aid.json"],
     ["sync", "Refresh the linked application in this folder"],
     ["clients", "Manage OAuth clients"], ["version", "Show CLI version"], ["help", "Show this message"]
