@@ -29,9 +29,9 @@ USAGE
 SUBCOMMANDS
 `);
       commandList([
-        ["list", "List clients"],
+        ["list [--search <text>] [--limit <n>] [--json]", "List/filter clients or emit JSON"],
         ["create --name <n>", "Create a client"],
-        ["get <client_id>", "Show one client"],
+        ["get <client_id> [--json]", "Show one client"],
         ["delete <client_id>", "Delete a client"],
         ["rotate-secret <client_id>", "Rotate the secret"]
       ]);
