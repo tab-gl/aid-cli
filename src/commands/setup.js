@@ -395,7 +395,7 @@ async function fileExists(file) {
 }
 
 async function writeConfig(file, config) {
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmp, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
     await fs.chmod(tmp, 0o600);
@@ -407,7 +407,7 @@ async function writeConfig(file, config) {
 }
 
 async function writeAtomic(file, data, mode = 0o644) {
-  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
   try {
     await fs.writeFile(tmp, data, { mode });
     await fs.chmod(tmp, mode);
