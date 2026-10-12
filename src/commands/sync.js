@@ -29,7 +29,21 @@ export async function sync(args = []) {
     throw new Error("The local .aid.json has no valid app_id. Run `aid link <app_id> --force`.");
   }
 
-  const app = await apiJson(`/apps/${encodeURIComponent(config.app_id)}`);
+  let clientPromise = null;
+  if (config.client_id !== undefined && config.client_id !== null) {
+    if (typeof config.client_id !== "string" || !config.client_id.trim()) {
+      throw new Error("The local .aid.json contains an invalid client_id. Local configuration was not changed.");
+    }
+    clientPromise = apiJson(`/clients/${encodeURIComponent(config.client_id)}`);
+  }
+
+  // Both reads are independent. Fetch them together to avoid paying two full
+  // network round trips, but validate both responses before touching the file.
+  const [app, client] = await Promise.all([
+    apiJson(`/apps/${encodeURIComponent(config.app_id)}`),
+    clientPromise || Promise.resolve(null)
+  ]);
+
   if (!app || typeof app !== "object" || Array.isArray(app) || typeof app.id !== "string" || !app.id) {
     throw new Error("The linked application response was invalid. Local configuration was not changed.");
   }
@@ -42,12 +56,7 @@ export async function sync(args = []) {
     }
   }
 
-  let client = null;
-  if (config.client_id !== undefined && config.client_id !== null) {
-    if (typeof config.client_id !== "string" || !config.client_id.trim()) {
-      throw new Error("The local .aid.json contains an invalid client_id. Local configuration was not changed.");
-    }
-    client = await apiJson(`/clients/${encodeURIComponent(config.client_id)}`);
+  if (client) {
     if (!client || typeof client !== "object" || Array.isArray(client) ||
         client.client_id !== config.client_id ||
         (client.app_id !== undefined && client.app_id !== null && String(client.app_id) !== config.app_id)) {
