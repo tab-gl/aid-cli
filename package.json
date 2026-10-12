@@ -8,13 +8,29 @@
     "ace-id": "./bin/ace-id.js",
     "aidc": "./bin/aidc.js"
   },
-  "files": ["bin/", "src/", "README.md", "CHANGELOG.md", "LICENSE"],
-  "engines": { "node": ">=18" },
-  "keywords": ["aid", "aidc", "ace-base", "ace-id", "oidc", "oauth", "cli"],
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "aid",
+    "aidc",
+    "ace-base",
+    "ace-id",
+    "oidc",
+    "oauth",
+    "cli"
+  ],
   "author": "The Ace Base",
   "license": "MIT",
   "scripts": {
-    "check": "node --check bin/aid.js && find bin src -type f -name '*.js' -exec node --check {} \\;",
+    "check": "node scripts/check.js",
     "test": "node --test"
   }
 }
