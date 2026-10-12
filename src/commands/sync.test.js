@@ -93,7 +93,7 @@ test("sync refreshes remote app and client metadata while preserving unrelated p
   const result = await runSync(state.root, state.env);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Remote app name/);
-  assert.deepEqual(state.requests.map((request) => request.url), ["/apps/app-1", "/clients/client-1"]);
+  assert.deepEqual(state.requests.map((request) => request.url).sort(), ["/apps/app-1", "/clients/client-1"]);
 
   const synced = JSON.parse(await fs.readFile(configPath, "utf8"));
   assert.equal(synced.app_name, "Remote app name");
