@@ -106,7 +106,7 @@ export async function sync(args = []) {
   }
 
   const changes = diffMetadata(config, next);
-  console.log("\\nSYNC PLAN");
+  console.log("\nSYNC PLAN");
   if (!changes.length) {
     console.log("  No metadata changes detected. Local configuration is already up to date.");
     fields([
@@ -123,7 +123,7 @@ export async function sync(args = []) {
     console.log(`  ${change.field}: ${change.before} -> ${change.after}`);
   }
   if (dryRun) {
-    console.log("\\nDry run complete. No files were changed.");
+    console.log("\nDry run complete. No files were changed.");
     return;
   }
 
