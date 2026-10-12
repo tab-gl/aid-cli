@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { commandList, fields, table } from "./format.js";
+import { commandList, fields, jsonOutput, table } from "./format.js";
 
 const ansi = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
@@ -92,4 +92,17 @@ test("desktop command lists align descriptions in a stable column", () => {
   const authLine = output.split("\n").find((line) => line.includes("Verify the current session"));
   assert.ok(setupLine && authLine, output);
   assert.equal(setupLine.indexOf("Set up the project"), authLine.indexOf("Verify the current session"));
+});
+
+test("JSON output is valid machine-readable JSON without terminal decoration", () => {
+  const originalLog = console.log;
+  const lines = [];
+  console.log = (...args) => lines.push(args.join(" "));
+  try {
+    jsonOutput([{ id: "app-1", name: "Web" }]);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.deepEqual(JSON.parse(lines.join("\n")), [{ id: "app-1", name: "Web" }]);
+  assert.equal(lines.length, 1);
 });
