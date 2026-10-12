@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { apiJson } from "../api/client.js";
 import { ISSUER } from "../auth/config.js";
-import { success, fields, warn } from "../ui/format.js";
+import { success, fields } from "../ui/format.js";
 import { link } from "./link.js";
 
 const CONFIG_FILE = ".aid.json";
@@ -14,14 +14,14 @@ export async function sync(args = []) {
   const configPath = path.join(process.cwd(), CONFIG_FILE);
 
   if (appId) {
-    // Link handles identity validation and atomically replaces the local link.
-    // It also avoids carrying a client over when the application changes.
+    // Switching the app intentionally drops metadata belonging to the old app.
     await link([appId, "--force"]);
     return;
   }
 
-  const config = await readConfig(configPath);
-  if (!config) throw new Error("No .aid.json found. Run `aid link <app_id>` first.");
+  const snapshot = await readConfig(configPath);
+  if (!snapshot) throw new Error("No .aid.json found. Run `aid link <app_id>` first.");
+  const { config } = snapshot;
   if (config.issuer !== ISSUER) {
     throw new Error("The linked project uses a different issuer. Refusing to sync it against the current account.");
   }
@@ -36,34 +36,61 @@ export async function sync(args = []) {
   if (app.id !== config.app_id) {
     throw new Error("The API returned a different application ID. Local configuration was not changed.");
   }
+  for (const key of ["name", "description"]) {
+    if (Object.hasOwn(app, key) && app[key] !== null && typeof app[key] !== "string") {
+      throw new Error(`The linked application's ${key} field was invalid. Local configuration was not changed.`);
+    }
+  }
 
   let client = null;
-  if (config.client_id) {
+  if (config.client_id !== undefined && config.client_id !== null) {
     if (typeof config.client_id !== "string" || !config.client_id.trim()) {
       throw new Error("The local .aid.json contains an invalid client_id. Local configuration was not changed.");
     }
     client = await apiJson(`/clients/${encodeURIComponent(config.client_id)}`);
     if (!client || typeof client !== "object" || Array.isArray(client) ||
-        (client.client_id && client.client_id !== config.client_id)) {
-      throw new Error("The linked OAuth client response was invalid. Local configuration was not changed.");
+        client.client_id !== config.client_id ||
+        (client.app_id !== undefined && client.app_id !== null && String(client.app_id) !== config.app_id)) {
+      throw new Error("The linked OAuth client response was invalid or belongs to another application. Local configuration was not changed.");
+    }
+    if (Object.hasOwn(client, "redirect_uris") &&
+        (!Array.isArray(client.redirect_uris) || client.redirect_uris.some((uri) => typeof uri !== "string"))) {
+      throw new Error("The linked OAuth client returned invalid redirect URIs. Local configuration was not changed.");
+    }
+    if (Object.hasOwn(client, "scopes") &&
+        (!Array.isArray(client.scopes) || client.scopes.some((scope) => typeof scope !== "string"))) {
+      throw new Error("The linked OAuth client returned invalid scopes. Local configuration was not changed.");
     }
   }
 
-  // Remote application/client metadata is canonical; unrelated project settings
-  // remain untouched. Nothing is written until every remote read has succeeded.
-  const next = {
-    ...config,
-    app_id: app.id,
-    app_name: typeof app.name === "string" ? app.name : config.app_name,
-    app_description: typeof app.description === "string" ? app.description : config.app_description,
-    ...(client && Array.isArray(client.redirect_uris) && client.redirect_uris.length
-      ? { redirect_uri: client.redirect_uris[0] }
-      : {}),
-    ...(client && Array.isArray(client.scopes)
-      ? { scopes: [...new Set(client.scopes.filter((scope) => typeof scope === "string" && scope.trim()))] }
-      : {}),
-    synced_at: new Date().toISOString()
-  };
+  // Apply only validated remote fields. If the server explicitly clears a field,
+  // remove stale local metadata; if it omits a field entirely, leave it alone.
+  const next = { ...config, app_id: app.id };
+  if (Object.hasOwn(app, "name")) {
+    if (typeof app.name === "string" && app.name.trim()) next.app_name = app.name;
+    else delete next.app_name;
+  }
+  if (Object.hasOwn(app, "description")) {
+    if (typeof app.description === "string" && app.description.trim()) next.app_description = app.description;
+    else delete next.app_description;
+  }
+  if (client && Object.hasOwn(client, "redirect_uris")) {
+    if (client.redirect_uris.length) next.redirect_uri = client.redirect_uris[0];
+    else delete next.redirect_uri;
+  }
+  if (client && Object.hasOwn(client, "scopes")) {
+    next.scopes = [...new Set(client.scopes.map((scope) => scope.trim()).filter(Boolean))];
+  }
+  next.synced_at = new Date().toISOString();
+
+  // Avoid overwriting edits made while remote requests were in flight.
+  const currentRaw = await fs.readFile(configPath, "utf8").catch((err) => {
+    if (err.code === "ENOENT") return null;
+    throw new Error(`Could not re-check ${CONFIG_FILE} before writing: ${err.message}`);
+  });
+  if (currentRaw !== snapshot.raw) {
+    throw new Error(`${CONFIG_FILE} changed while sync was running. No local changes were written; rerun `aid sync`.`);
+  }
 
   await writeConfig(configPath, next);
 
@@ -71,7 +98,7 @@ export async function sync(args = []) {
   fields([
     ["Application ID", app.id],
     ["Application", app.name || app.id],
-    ...(client ? [["Client ID", client.client_id || config.client_id]] : []),
+    ...(client ? [["Client ID", client.client_id]] : []),
     ["Remote metadata", "up to date"],
     ["Project settings", "preserved"],
     ["Last synced", next.synced_at],
@@ -97,7 +124,7 @@ async function readConfig(file) {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     throw new Error(`${CONFIG_FILE} must contain a JSON object. The file was left untouched.`);
   }
-  return config;
+  return { config, raw };
 }
 
 async function writeConfig(file, config) {
