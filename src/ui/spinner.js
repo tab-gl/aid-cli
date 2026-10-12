@@ -1,72 +1,45 @@
-import { colorsEnabled } from "./colors.js";
-
 /*
- * Frame presets.
- *
- * All render correctly on Termux, Alpine, and
- * any modern terminal. No emoji — wide-char
- * width bugs on some Android terminals make
- * them unreliable.
+ * Lightweight terminal spinner. Animations use stderr so redirected stdout
+ * remains machine-readable. Non-TTY output receives only the final status.
  */
 const STYLES = {
-  arc:    ["◜","◝","◞","◟"],
-  pulse:  ["▁","▂","▃","▄","▅","▆","▇","█","▇","▆","▅","▄","▃","▂"],
-  bounce: ["⠁","⠂","⠄","⡀","⢀","⠠","⠐","⠈"],
-  grow:   ["·","∙","•","●","•","∙"],
-  star:   ["✶","✸","✹","✺","✹","✸"]
+  arc: ["◜", "◝", "◞", "◟"],
+  pulse: ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃", "▂"],
+  bounce: ["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"],
+  grow: ["·", "∙", "•", "●", "•", "∙"],
+  star: ["✶", "✸", "✹", "✺", "✹", "✸"]
 };
 
 export const SPINNER_STYLES = Object.keys(STYLES);
 
-/*
- * Register a custom spinner style globally so
- * you can use it by name:
- *
- *   registerStyle("aidc", ["◐","◓","◑","◒"]);
- *   spinner("Working…", { style: "aidc" });
- *
- * Or set AIDC_SPINNER=aidc in the environment.
- */
-export function registerStyle(name, frames) {
-  if (!Array.isArray(frames) || frames.length === 0) {
-    throw new Error("Spinner frames must be a non-empty array.");
+function validateFrames(frames) {
+  if (!Array.isArray(frames) || frames.length === 0 ||
+      frames.some((frame) => typeof frame !== "string" || !frame.trim())) {
+    throw new Error("Spinner frames must be a non-empty array of non-empty strings.");
   }
-  STYLES[name] = frames;
+  return [...frames];
+}
+
+export function registerStyle(name, frames) {
+  if (typeof name !== "string" || !/^[a-z0-9_-]+$/i.test(name)) {
+    throw new Error("Spinner style names may contain only letters, numbers, underscores, and hyphens.");
+  }
+  STYLES[name] = validateFrames(frames);
 }
 
 function resolveStyle(options) {
-  const name =
-    options.style ||
-    process.env.AIDC_SPINNER ||
-    "arc";
-
-  if (options.frames) {
-    return options.frames;
-  }
-
+  if (options.frames !== undefined) return validateFrames(options.frames);
+  const name = options.style || process.env.AIDC_SPINNER || "arc";
   return STYLES[name] || STYLES.arc;
 }
 
-/*
- * Single-line terminal spinner.
- *
- * Writes to stderr by default so piped stdout
- * (`aidc apps list > out.txt`) doesn't get
- * spinner garbage mixed in.
- *
- * Falls back to plain text on non-TTY streams,
- * NO_COLOR, and TERM=dumb — animation off, but
- * final state still printed.
- */
 export function spinner(text, options = {}) {
   const frames = resolveStyle(options);
-  const interval = Math.max(40, options.interval || 80);
+  const intervalValue = Number(options.interval) || 80;
+  const interval = Math.max(40, Math.min(2000, intervalValue));
   const stream = options.stream || process.stderr;
-
-  const isTTY =
-    stream.isTTY &&
-    !process.env.NO_COLOR &&
-    process.env.TERM !== "dumb";
+  const isTTY = Boolean(stream.isTTY) && process.env.TERM !== "dumb";
+  const useColor = isTTY && !process.env.NO_COLOR;
 
   let frameIndex = 0;
   let timer = null;
@@ -74,86 +47,64 @@ export function spinner(text, options = {}) {
   let stopped = false;
 
   function render() {
-    const frame = frames[frameIndex % frames.length];
-    frameIndex++;
-
-    const cols = stream.columns || 80;
+    if (stopped || !isTTY) return;
+    const frame = frames[frameIndex++ % frames.length];
+    const cols = Number(stream.columns) > 0 ? Math.floor(stream.columns) : 80;
     const prefix = `  ${frame} `;
-    const available = Math.max(1, cols - prefix.length);
-
-    let display = currentText;
-    if (display.length > available) {
-      display = display.slice(0, available - 1) + "…";
-    }
-
-    const line = colorsEnabled
-      ? `\x1b[2m${prefix}\x1b[22m${display}`
-      : `${prefix}${display}`;
-
+    const available = Math.max(1, cols - [...prefix].length);
+    const chars = [...currentText];
+    const display = chars.length > available
+      ? `${chars.slice(0, Math.max(0, available - 1)).join("")}…`
+      : currentText;
+    const line = useColor ? `\x1b[2m${prefix}\x1b[22m${display}` : `${prefix}${display}`;
     stream.write(`\r\x1b[K${line}`);
   }
 
   function clearLine() {
-    stream.write("\r\x1b[K");
+    if (isTTY) stream.write("\r\x1b[K");
   }
 
   function finish(symbol, message, color) {
     if (stopped) return api;
     stopped = true;
-
     if (timer) {
       clearInterval(timer);
       timer = null;
     }
-
-    if (isTTY) clearLine();
-
-    const c = colorsEnabled ? color : "";
-    const r = colorsEnabled ? "\x1b[39m" : "";
-
-    stream.write(`  ${c}${symbol}${r} ${message}\n`);
-
+    clearLine();
+    const c = useColor ? color : "";
+    const reset = useColor ? "\x1b[39m" : "";
+    stream.write(`  ${c}${symbol}${reset} ${String(message)}\n`);
     return api;
   }
 
   const api = {
     start() {
-      if (stopped) return api;
-
+      if (stopped || timer) return api;
       if (isTTY) {
         render();
         timer = setInterval(render, interval);
       }
-
       return api;
     },
-
     update(newText) {
+      if (stopped) return api;
       currentText = String(newText);
-
-      if (isTTY && !stopped) {
-        render();
-      }
-
+      render();
       return api;
     },
-
     succeed(message = currentText) {
       return finish("✓", message, "\x1b[32m");
     },
-
     fail(message = currentText) {
       return finish("✗", message, "\x1b[31m");
     },
-
     warn(message = currentText) {
       return finish("!", message, "\x1b[33m");
     },
-
     info(message = currentText) {
       return finish("i", message, "\x1b[34m");
     },
-
     stop() {
       return finish(" ", currentText, "");
     }
@@ -162,27 +113,14 @@ export function spinner(text, options = {}) {
   return api;
 }
 
-/*
- * Convenience wrapper for a single async task:
- *
- *   const user = await withSpinner(
- *     "Loading profile…",
- *     () => apiJson("/me"),
- *     { successText: "Profile loaded" }
- *   );
- *
- * On error, the spinner fails with the error
- * message and the error is re-thrown.
- */
 export async function withSpinner(text, fn, options = {}) {
-  const s = spinner(text, options).start();
-
+  const task = spinner(text, options).start();
   try {
-    const result = await fn(s);
-    s.succeed(options.successText || text);
+    const result = await fn(task);
+    task.succeed(options.successText || text);
     return result;
   } catch (err) {
-    s.fail(options.failText || err.message || text);
+    task.fail(options.failText || err.message || text);
     throw err;
   }
 }
