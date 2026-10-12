@@ -108,7 +108,7 @@ export function fields(rows) {
       for (const line of wrapText(value, width - 4)) console.log(`    ${bold(line)}`);
       continue;
     }
-    if (visibleLength(value) <= inlineWidth && !value.includes("\\n")) {
+    if (visibleLength(value) <= inlineWidth && !value.includes("\n")) {
       console.log(`  ${dim(label.padEnd(labelWidth))}  ${bold(value)}`);
       continue;
     }
