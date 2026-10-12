@@ -9,20 +9,24 @@ import { fileURLToPath } from "node:url";
 
 const entry = fileURLToPath(new URL("../../bin/aid.js", import.meta.url));
 
-async function fixture(t, config) {
+async function fixture(t, config, overrides = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "aid-cli-sync-project-"));
   const configHome = await fs.mkdtemp(path.join(os.tmpdir(), "aid-cli-sync-auth-"));
   const requests = [];
-  const server = http.createServer((req, res) => {
+  let signalClientRequest;
+  const clientRequest = new Promise((resolve) => { signalClientRequest = resolve; });
+  const server = http.createServer(async (req, res) => {
     requests.push({ method: req.method, url: req.url });
     if (req.url === "/apps/app-1") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ id: "app-1", name: "Remote app name", description: "Remote description" }));
+      res.end(JSON.stringify(overrides.app ?? { id: "app-1", name: "Remote app name", description: "Remote description" }));
       return;
     }
     if (req.url === "/clients/client-1") {
+      signalClientRequest();
+      if (overrides.delayClientMs) await new Promise((resolve) => setTimeout(resolve, overrides.delayClientMs));
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
+      res.end(JSON.stringify(overrides.client ?? {
         client_id: "client-1",
         redirect_uris: ["https://example.test/new-callback"],
         scopes: ["openid", "profile", "openid"]
@@ -49,7 +53,7 @@ async function fixture(t, config) {
   }), { mode: 0o600 });
   if (config !== undefined) await fs.writeFile(path.join(root, ".aid.json"), config);
   return {
-    root, configHome, issuer, requests,
+    root, configHome, issuer, requests, clientRequest,
     env: { ...process.env, AIDC_ISSUER: issuer, XDG_CONFIG_HOME: configHome, AIDC_REFRESH_LEEWAY_MS: "1000" }
   };
 }
@@ -125,4 +129,82 @@ test("sync refuses malformed config rather than replacing it", async (t) => {
   assert.match(result.stderr, /invalid JSON/);
   assert.deepEqual(state.requests, []);
   assert.equal(await fs.readFile(configPath, "utf8"), original);
+});
+
+test("sync removes stale metadata when remote values are explicitly cleared", async (t) => {
+  const state = await fixture(t, undefined, {
+    app: { id: "app-1", name: null, description: null },
+    client: { client_id: "client-1", redirect_uris: [], scopes: [] }
+  });
+  const configPath = path.join(state.root, ".aid.json");
+  await fs.writeFile(configPath, JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1",
+    app_name: "Old name",
+    app_description: "Old description",
+    redirect_uri: "https://example.test/old",
+    scopes: ["openid"],
+    custom_setting: "preserve"
+  }));
+
+  const result = await runSync(state.root, state.env);
+  assert.equal(result.code, 0, result.stderr);
+  const synced = JSON.parse(await fs.readFile(configPath, "utf8"));
+  assert.equal(Object.hasOwn(synced, "app_name"), false);
+  assert.equal(Object.hasOwn(synced, "app_description"), false);
+  assert.equal(Object.hasOwn(synced, "redirect_uri"), false);
+  assert.deepEqual(synced.scopes, []);
+  assert.equal(synced.custom_setting, "preserve");
+});
+
+test("sync rejects a client linked to another app without changing local config", async (t) => {
+  const state = await fixture(t, undefined, {
+    client: {
+      client_id: "client-1",
+      app_id: "another-app",
+      redirect_uris: ["https://example.test/callback"],
+      scopes: ["openid"]
+    }
+  });
+  const configPath = path.join(state.root, ".aid.json");
+  const original = JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1",
+    custom_setting: "keep"
+  });
+  await fs.writeFile(configPath, original);
+
+  const result = await runSync(state.root, state.env);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /belongs to another application/);
+  assert.equal(await fs.readFile(configPath, "utf8"), original);
+});
+
+test("sync refuses to overwrite local edits made while remote metadata is loading", async (t) => {
+  const state = await fixture(t, undefined, { delayClientMs: 150 });
+  const configPath = path.join(state.root, ".aid.json");
+  const original = JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1",
+    custom_setting: "before"
+  });
+  await fs.writeFile(configPath, original);
+
+  const pending = runSync(state.root, state.env);
+  await state.clientRequest;
+  const edited = JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1",
+    custom_setting: "changed while sync was running"
+  }, null, 2);
+  await fs.writeFile(configPath, edited);
+
+  const result = await pending;
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /changed while sync was running/);
+  assert.equal(await fs.readFile(configPath, "utf8"), edited);
 });
