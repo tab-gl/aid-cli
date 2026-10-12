@@ -5,8 +5,8 @@ import { filterResources, parseListOptions } from "../list-options.js";
 export async function list(args = []) {
   const options = parseListOptions(args, "Usage: aid apps list [--search <text>] [--limit <n>] [--json]");
   const response = await apiJson("/apps");
-  if (!Array.isArray(response)) {
-    throw new Error("The API returned an unexpected application list. Expected an array.");
+  if (!Array.isArray(response) || response.some((app) => !app || typeof app !== "object" || Array.isArray(app))) {
+    throw new Error("The API returned an unexpected application list. Expected an array of application objects.");
   }
 
   const apps = filterResources(
