@@ -81,3 +81,14 @@ test("desktop table sizing handles wide Unicode characters without losing values
   assert.match(output, /Ace Identity 客户端/);
   assert.match(output, /ID\s+NAME/);
 });
+
+test("desktop command lists align descriptions in a stable column", () => {
+  const output = renderAtWidth(80, () => commandList([
+    ["setup", "Set up the project"],
+    ["test-auth", "Verify the current session"]
+  ]));
+  const setupLine = output.split("\n").find((line) => line.includes("Set up the project"));
+  const authLine = output.split("\n").find((line) => line.includes("Verify the current session"));
+  assert.ok(setupLine && authLine, output);
+  assert.equal(setupLine.indexOf("Set up the project"), authLine.indexOf("Verify the current session"));
+});
