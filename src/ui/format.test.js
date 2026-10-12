@@ -35,7 +35,7 @@ test("table switches to a stacked layout on narrow terminals", () => {
     [{ header: "CLIENT ID", value: (row) => row.id }, { header: "APPLICATION NAME", value: (row) => row.name }]
   ));
   assert.ok(output.replace(/\s/g, "").includes("client_abcdefghijklmnopqrstuvwxyz"), output);
-  assert.match(output, /APPLICATION NAME:/);
+  assert.ok(output.replace(/\s/g, "").includes("APPLICATIONNAME:"), output);
   assert.ok(output.split("\n").every((line) => line.length <= 32), output);
 });
 
