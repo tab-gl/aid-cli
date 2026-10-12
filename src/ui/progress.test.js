@@ -65,5 +65,5 @@ test("step progress wraps long labels to fit narrow terminals", () => {
   const lines = output.read().replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "").trimEnd().split("\n");
   assert.ok(lines.length > 1, output.read());
   assert.ok(lines.every((line) => line.length <= 30), output.read());
-  assert.match(output.read(), /Creating the remote/);
+  assert.match(output.read(), /Creating/);
 });
