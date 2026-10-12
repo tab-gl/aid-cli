@@ -7,53 +7,124 @@ import {
 } from "./colors.js";
 
 const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+const SEGMENTER = typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : null;
 
 function terminalWidth() {
   const width = Number(process.stdout.columns);
   return Number.isFinite(width) && width > 0 ? Math.max(8, Math.floor(width)) : 80;
 }
 
+function graphemes(value) {
+  const text = String(value);
+  return SEGMENTER
+    ? [...SEGMENTER.segment(text)].map((part) => part.segment)
+    : [...text];
+}
+
+function graphemeWidth(grapheme) {
+  if (!grapheme || /^[\p{Mark}\u200d\uFE0E\uFE0F]+$/u.test(grapheme)) return 0;
+  for (const character of grapheme) {
+    const code = character.codePointAt(0);
+    if (
+      (code >= 0x1100 && code <= 0x11ff) ||
+      (code >= 0x2e80 && code <= 0xa4cf) ||
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0xfe10 && code <= 0xfe6f) ||
+      (code >= 0xff00 && code <= 0xff60) ||
+      (code >= 0xffe0 && code <= 0xffe6) ||
+      (code >= 0x1f000 && code <= 0x1faff) ||
+      (code >= 0x20000 && code <= 0x3ffff)
+    ) return 2;
+  }
+  return 1;
+}
+
 function visibleLength(value) {
-  return [...String(value).replace(ANSI_PATTERN, "")].length;
+  return graphemes(String(value).replace(ANSI_PATTERN, ""))
+    .reduce((width, part) => width + graphemeWidth(part), 0);
+}
+
+function padDisplay(value, width) {
+  const text = String(value);
+  return text + " ".repeat(Math.max(0, width - visibleLength(text)));
 }
 
 function truncate(value, width) {
-  const chars = [...String(value)];
+  const chars = graphemes(String(value));
   if (width <= 0) return "";
-  if (chars.length <= width) return chars.join("");
+  if (visibleLength(chars.join("")) <= width) return chars.join("");
   if (width === 1) return "…";
-  return chars.slice(0, width - 1).join("") + "…";
+
+  let output = "";
+  let used = 0;
+  for (const character of chars) {
+    const size = graphemeWidth(character);
+    if (used + size > width - 1) break;
+    output += character;
+    used += size;
+  }
+  return output + "…";
+}
+
+function splitLongWord(word, width) {
+  const parts = [];
+  let line = "";
+  let used = 0;
+  for (const character of graphemes(word)) {
+    const size = graphemeWidth(character);
+    if (line && used + size > width) {
+      parts.push(line);
+      line = "";
+      used = 0;
+    }
+    line += character;
+    used += size;
+  }
+  if (line) parts.push(line);
+  return parts.length ? parts : [""];
 }
 
 function wrapText(value, width) {
   const text = String(value ?? "");
   if (width < 1) return [""];
   const lines = [];
+
   for (const paragraph of text.split(/\r?\n/)) {
     let line = "";
+    let lineWidth = 0;
+
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-      if (!line) {
-        if ([...word].length <= width) line = word;
-        else {
-          const chars = [...word];
-          while (chars.length > width) lines.push(chars.splice(0, width).join(""));
-          line = chars.join("");
+      const wordWidth = visibleLength(word);
+      if (wordWidth > width) {
+        if (line) {
+          lines.push(line);
+          line = "";
+          lineWidth = 0;
         }
-      } else if ([...line].length + 1 + [...word].length <= width) {
+        const pieces = splitLongWord(word, width);
+        lines.push(...pieces.slice(0, -1));
+        line = pieces[pieces.length - 1];
+        lineWidth = visibleLength(line);
+      } else if (!line) {
+        line = word;
+        lineWidth = wordWidth;
+      } else if (lineWidth + 1 + wordWidth <= width) {
         line += ` ${word}`;
+        lineWidth += 1 + wordWidth;
       } else {
         lines.push(line);
-        if ([...word].length <= width) line = word;
-        else {
-          const chars = [...word];
-          while (chars.length > width) lines.push(chars.splice(0, width).join(""));
-          line = chars.join("");
-        }
+        line = word;
+        lineWidth = wordWidth;
       }
     }
+
     if (line) lines.push(line);
     else if (!paragraph) lines.push("");
   }
+
   return lines.length ? lines : [""];
 }
 
@@ -93,25 +164,31 @@ export function fields(rows) {
   const width = terminalWidth();
   const labelWidth = Math.min(
     24,
-    Math.max(1, Math.min(Math.max(...visibleRows.map(([label]) => String(label).length)), Math.floor(width / 3)))
+    Math.max(1, Math.min(
+      Math.max(...visibleRows.map(([label]) => visibleLength(label))),
+      Math.floor(width / 3)
+    ))
   );
-  const valueWidth = Math.max(8, width - labelWidth - 6);
+  const valueWidth = Math.max(1, width - labelWidth - 6);
 
   console.log("");
   for (const [rawLabel, rawValue] of visibleRows) {
     const label = String(rawLabel);
     const value = String(rawValue);
-    const inlineWidth = width - labelWidth - 4;
+    const labelSize = visibleLength(label);
     const valueLines = wrapText(value, valueWidth);
-    if (label.length > labelWidth) {
+
+    if (labelSize > labelWidth) {
       for (const line of wrapText(label, labelWidth)) console.log(`  ${dim(line)}`);
-      for (const line of wrapText(value, width - 4)) console.log(`    ${bold(line)}`);
+      for (const line of wrapText(value, Math.max(1, width - 4))) console.log(`    ${bold(line)}`);
       continue;
     }
-    if (visibleLength(value) <= inlineWidth && !value.includes("\n")) {
-      console.log(`  ${dim(label.padEnd(labelWidth))}  ${bold(value)}`);
+
+    if (visibleLength(value) <= valueWidth && !value.includes("\n")) {
+      console.log(`  ${dim(padDisplay(label, labelWidth))}  ${bold(value)}`);
       continue;
     }
+
     console.log(`  ${dim(label)}`);
     for (const line of valueLines) console.log(`    ${bold(line)}`);
   }
@@ -120,13 +197,66 @@ export function fields(rows) {
 
 /* ── Responsive table ───────────────────── */
 
+function allocateColumnWidths(naturalWidths, headers, available) {
+  const widths = naturalWidths.map((natural, index) =>
+    Math.min(natural, Math.max(6, Math.min(18, visibleLength(headers[index]))))
+  );
+  let remaining = available - widths.reduce((sum, value) => sum + value, 0);
+
+  while (remaining > 0) {
+    let target = -1;
+    let largestNeed = 0;
+    for (let index = 0; index < widths.length; index++) {
+      const need = naturalWidths[index] - widths[index];
+      if (need > largestNeed) {
+        target = index;
+        largestNeed = need;
+      }
+    }
+    if (target < 0) break;
+    widths[target]++;
+    remaining--;
+  }
+
+  return widths;
+}
+
+function renderWideTable(normalized, headers, naturalWidths, width) {
+  const gap = "  ";
+  const available = Math.max(1, width - 3 - gap.length * (headers.length - 1));
+  const widths = naturalWidths.reduce((sum, value) => sum + value, 0) <= available
+    ? naturalWidths
+    : allocateColumnWidths(naturalWidths, headers, available);
+
+  const headerLines = headers.map((header, index) => wrapText(header, widths[index]));
+  const headerHeight = Math.max(...headerLines.map((lines) => lines.length));
+  for (let line = 0; line < headerHeight; line++) {
+    console.log(`  ${headerLines.map((lines, index) =>
+      dim(padDisplay(lines[line] || "", widths[index]))
+    ).join(gap)}`);
+  }
+  console.log(`  ${widths.map((size) => "─".repeat(size)).join("──")}`);
+
+  for (const row of normalized) {
+    const cells = row.map((value, index) => wrapText(value, widths[index]));
+    const height = Math.max(...cells.map((lines) => lines.length));
+    for (let line = 0; line < height; line++) {
+      console.log(`  ${cells.map((lines, index) =>
+        padDisplay(lines[line] || "", widths[index])
+      ).join(gap)}`);
+    }
+  }
+}
+
+/* ── Table ───────────────────────────────── */
+
 export function table(rows, columns) {
   if (!Array.isArray(rows)) {
     throw new Error("The API returned an unexpected list response. Expected an array.");
   }
   if (!Array.isArray(columns) || columns.length === 0) return;
   if (rows.length === 0) {
-    console.log(`\n${dim("(empty)")}\n`);
+    console.log(`\n${dim("(empty")}\n`);
     return;
   }
 
@@ -141,29 +271,24 @@ export function table(rows, columns) {
   }));
   const headers = columns.map((column) => String(column.header));
   const naturalWidths = headers.map((header, index) =>
-    Math.max(header.length, ...normalized.map((row) => row[index].length))
+    Math.max(visibleLength(header), ...normalized.map((row) => visibleLength(row[index])))
   );
-  const requiredWidth = 2 + naturalWidths.reduce((sum, width) => sum + width, 0) + 2 * (columns.length - 1);
   const width = terminalWidth();
+  const minimumTableWidth = 2 + columns.length * 6 + Math.max(0, columns.length - 1) * 2;
 
   console.log("");
-  if (requiredWidth <= width && naturalWidths.every((value) => value <= width)) {
-    const pad = (value, size) => String(value).padEnd(size);
-    console.log(`  ${headers.map((header, index) => dim(pad(header, naturalWidths[index]))).join("  ")}`);
-    console.log(`  ${dim(naturalWidths.map((size) => "─".repeat(size)).join("──"))}`);
-    for (const row of normalized) {
-      console.log(`  ${row.map((value, index) => pad(value, naturalWidths[index])).join("  ")}`);
-    }
+  if (width >= 72 && width >= minimumTableWidth) {
+    renderWideTable(normalized, headers, naturalWidths, width);
   } else {
     // Narrow terminals get a stacked layout rather than a broken wide table.
-    const primaryWidth = Math.max(8, width - 4);
+    const primaryWidth = Math.max(1, width - 4);
     for (const row of normalized) {
       for (const titleLine of wrapText(row[0], primaryWidth)) console.log(`  ${bold(titleLine)}`);
       for (let index = 1; index < columns.length; index++) {
-        for (const labelLine of wrapText(`${headers[index]}:`, Math.max(4, width - 4))) {
+        for (const labelLine of wrapText(`${headers[index]}:`, Math.max(1, width - 4))) {
           console.log(`    ${dim(labelLine)}`);
         }
-        for (const line of wrapText(row[index], Math.max(4, width - 6))) console.log(`      ${line}`);
+        for (const line of wrapText(row[index], Math.max(1, width - 6))) console.log(`      ${line}`);
       }
       console.log("");
     }
@@ -176,7 +301,7 @@ export function table(rows, columns) {
 export function usage(text) {
   console.log("");
   for (const line of String(text).trim().split("\n")) {
-    for (const wrapped of wrapText(line, terminalWidth() - 2)) console.log(`  ${wrapped}`);
+    for (const wrapped of wrapText(line, Math.max(1, terminalWidth() - 2))) console.log(`  ${wrapped}`);
   }
   console.log("");
 }
@@ -194,15 +319,15 @@ export function commandList(rows) {
   for (const [rawCommand, rawDescription = ""] of rows) {
     const command = String(rawCommand);
     const description = String(rawDescription);
-    if (indent.length + command.length + gap.length + visibleLength(description) <= width) {
+    if (visibleLength(indent + command + gap) + visibleLength(description) <= width) {
       console.log(`${indent}${bold(command)}${gap}${description}`);
       continue;
     }
 
-    const safeCommand = truncate(command, Math.max(8, width - indent.length));
+    const safeCommand = truncate(command, Math.max(1, width - visibleLength(indent)));
     console.log(`${indent}${bold(safeCommand)}`);
     const descriptionIndent = `${indent}  `;
-    for (const line of wrapText(description, Math.max(8, width - descriptionIndent.length))) {
+    for (const line of wrapText(description, Math.max(1, width - visibleLength(descriptionIndent)))) {
       console.log(`${descriptionIndent}${line}`);
     }
   }
