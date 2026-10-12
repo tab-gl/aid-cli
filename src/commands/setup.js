@@ -299,14 +299,24 @@ async function inspectExistingSetup(configPath) {
       if (config.sdk_version && config.sdk_version !== installedVersion) {
         issues.push(`Recorded SDK version ${config.sdk_version} differs from installed ${installedVersion}.`);
       }
+      if (sdkRangeCompatibility(dependencyVersion, installedVersion) === false) {
+        issues.push(`Installed SDK version ${installedVersion} does not satisfy declared range ${dependencyVersion}.`);
+      }
     } else {
       console.log(`  ${dim("SDK VERSION")}  ${project.sdk}: declared ${dependencyVersion || "no"}, installed ${installedVersion || "no"}`);
     }
   } else if (project.sdkMode === "android") {
     const sdkPath = config.sdk_path || path.join("libs", ANDROID_SDK_ASSET);
-    const present = await fileExists(path.resolve(process.cwd(), sdkPath));
-    console.log(`  ${dim("SDK VERSION")}  Android artifact: ${present ? sdkPath : "missing"}`);
+    const resolvedSdkPath = path.resolve(process.cwd(), sdkPath);
+    const present = await fileExists(resolvedSdkPath);
+    let verified = false;
+    if (present) {
+      const artifact = await fs.readFile(resolvedSdkPath);
+      verified = crypto.createHash("sha256").update(artifact).digest("hex") === ANDROID_SDK_SHA256;
+    }
+    console.log(`  ${dim("SDK VERSION")}  Android artifact: ${present ? `1.1${verified ? " (verified)" : " (checksum differs)"}` : "missing"}`);
     if (!present) issues.push("The configured Android SDK artifact is missing.");
+    else if (!verified) issues.push("The installed Android SDK artifact does not match the pinned 1.1 checksum.");
   }
 
   heading("EXISTING SETUP");
@@ -327,7 +337,7 @@ async function inspectExistingSetup(configPath) {
   warn("Configuration drift detected:");
   for (const issue of issues) console.log(`  • ${issue}`);
   console.log("\nMinimal repair suggestions:");
-  if (issues.some((issue) => /SDK dependency .* is not declared/.test(issue))) {
+  if (issues.some((issue) => /SDK dependency .* is not declared|does not satisfy declared range/.test(issue))) {
     console.log(`  • Install the existing SDK dependency with ${project.packageManager === "pnpm" ? "pnpm add" : project.packageManager === "yarn" ? "yarn add" : project.packageManager === "bun" ? "bun add" : "npm install"} ${project.sdk}.`);
   }
   if (issues.some((issue) => /not installed in node_modules/.test(issue))) {
@@ -339,12 +349,28 @@ async function inspectExistingSetup(configPath) {
   if (issues.some((issue) => /Issuer differs/.test(issue))) {
     console.log("  • Confirm AIDC_ISSUER is set to the issuer that owns this project before syncing or relinking.");
   }
-  if (issues.some((issue) => /Android SDK artifact is missing/.test(issue))) {
-    console.log("  • Re-run setup only after confirming the target project and Android SDK artifact path.");
+  if (issues.some((issue) => /Android SDK artifact is missing|checksum differs/.test(issue))) {
+    console.log("  • Reinstall the pinned Android SDK artifact after confirming the target project.");
   }
   if (!issues.some((issue) => /SDK dependency|node_modules|project type|framework|SDK differs|Recorded SDK version|Issuer differs|Android SDK artifact/.test(issue))) {
     console.log("  • Run aid sync to refresh remote metadata; existing remote resources will not be recreated.");
   }
+}
+
+function sdkRangeCompatibility(range, version) {
+  const match = String(range).trim().match(/^(\\^|~|=)?v?(\\d+)\\.(\\d+)\\.(\\d+)$/);
+  const installed = String(version).trim().match(/^v?(\\d+)\\.(\\d+)\\.(\\d+)$/);
+  if (!match || !installed) return null;
+  const [, operator = "", majorText, minorText, patchText] = match;
+  const expected = [Number(majorText), Number(minorText), Number(patchText)];
+  const actual = installed.slice(1).map(Number);
+  if (operator === "^") {
+    if (expected[0] > 0) return actual[0] === expected[0];
+    if (expected[1] > 0) return actual[0] === 0 && actual[1] === expected[1];
+    return actual[0] === 0 && actual[1] === 0 && actual[2] === expected[2];
+  }
+  if (operator === "~") return actual[0] === expected[0] && actual[1] === expected[1];
+  return actual.every((part, index) => part === expected[index]);
 }
 
 async function readPackageJson() {
