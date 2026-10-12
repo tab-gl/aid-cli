@@ -190,7 +190,6 @@ export function commandList(rows) {
   for (const [rawCommand, rawDescription = ""] of rows) {
     const command = String(rawCommand);
     const description = String(rawDescription);
-    const available = Math.max(8, width - indent.length - gap.length - command.length);
     if (indent.length + command.length + gap.length + visibleLength(description) <= width) {
       console.log(`${indent}${bold(command)}${gap}${description}`);
       continue;
