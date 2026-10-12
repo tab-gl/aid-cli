@@ -18,6 +18,7 @@ async function fixture(t, config, overrides = {}) {
   const server = http.createServer(async (req, res) => {
     requests.push({ method: req.method, url: req.url });
     if (req.url === "/apps/app-1") {
+      if (overrides.appWaitsForClient) await clientRequest;
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(overrides.app ?? { id: "app-1", name: "Remote app name", description: "Remote description" }));
       return;
@@ -207,4 +208,21 @@ test("sync refuses to overwrite local edits made while remote metadata is loadin
   assert.equal(result.code, 1);
   assert.match(result.stderr, /changed while sync was running/);
   assert.equal(await fs.readFile(configPath, "utf8"), edited);
+});
+
+test("sync starts independent app and client metadata requests concurrently", async (t) => {
+  const state = await fixture(t, undefined, { appWaitsForClient: true });
+  const configPath = path.join(state.root, ".aid.json");
+  await fs.writeFile(configPath, JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1"
+  }));
+
+  const result = await runSync(state.root, state.env);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(state.requests.map((request) => request.url).sort(), [
+    "/apps/app-1",
+    "/clients/client-1"
+  ]);
 });
