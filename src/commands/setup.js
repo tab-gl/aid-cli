@@ -326,7 +326,7 @@ async function inspectExistingSetup(configPath) {
 
   warn("Configuration drift detected:");
   for (const issue of issues) console.log(`  • ${issue}`);
-  console.log("\\nMinimal repair suggestions:");
+  console.log("\nMinimal repair suggestions:");
   if (issues.some((issue) => /SDK dependency .* is not declared/.test(issue))) {
     console.log(`  • Install the existing SDK dependency with ${project.packageManager === "pnpm" ? "pnpm add" : project.packageManager === "yarn" ? "yarn add" : project.packageManager === "bun" ? "bun add" : "npm install"} ${project.sdk}.`);
   }
