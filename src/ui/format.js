@@ -10,7 +10,7 @@ const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
 function terminalWidth() {
   const width = Number(process.stdout.columns);
-  return Number.isFinite(width) && width > 0 ? Math.max(12, Math.floor(width)) : 80;
+  return Number.isFinite(width) && width > 0 ? Math.max(8, Math.floor(width)) : 80;
 }
 
 function visibleLength(value) {
@@ -160,11 +160,10 @@ export function table(rows, columns) {
     for (const row of normalized) {
       for (const titleLine of wrapText(row[0], primaryWidth)) console.log(`  ${bold(titleLine)}`);
       for (let index = 1; index < columns.length; index++) {
-        const prefix = `    ${headers[index]}: `;
-        const available = Math.max(4, width - prefix.length);
-        const lines = wrapText(row[index], available);
-        console.log(`    ${dim(headers[index] + ":")} ${lines[0] ?? ""}`);
-        for (const line of lines.slice(1)) console.log(`      ${line}`);
+        for (const labelLine of wrapText(`${headers[index]}:`, Math.max(4, width - 4))) {
+          console.log(`    ${dim(labelLine)}`);
+        }
+        for (const line of wrapText(row[index], Math.max(4, width - 6))) console.log(`      ${line}`);
       }
       console.log("");
     }
