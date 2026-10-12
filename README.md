@@ -37,7 +37,7 @@ aid login
 aid setup
 ```
 
-`aid setup` is intentionally fast and uses sensible defaults. It does not force a wizard on you.
+`aid setup` is intentionally fast and uses sensible defaults. It does not force a wizard on you. When `.aid.json` already exists, setup inspects the current project and SDK instead of creating duplicate remote resources. It reports declared and installed JavaScript SDK versions, flags local project/config drift, and suggests the smallest repair. Use `--force` only when you intentionally want to replace the existing setup.
 
 For a guided flow:
 
@@ -137,7 +137,7 @@ aid whoami --json
 aid test-auth --json
 ```
 
-Use `--search <text>` for case-insensitive matching and `--limit <n>` to cap displayed results. JSON output is printed without banners or table formatting, making it suitable for shell scripts and CI. Client JSON deliberately excludes secret/token fields.
+Use `--search <text>` for case-insensitive matching and `--limit <n>` to cap displayed results. JSON output is printed without banners or table formatting, making it suitable for shell scripts and CI. Client JSON deliberately excludes secret/token fields. `aid clients list` also resolves each client's owning application and reports orphaned clients, links that conflict with the current project's `.aid.json`, and redirect URI mismatches for the locally linked client.
 
 `app` is accepted for compatibility. Common application actions also route to the canonical `apps` command:
 
@@ -163,7 +163,7 @@ aid link <app-id> --client <client-id>
 
 If `.aid.json` already exists, linking refuses to overwrite it unless you explicitly use `--force`.
 
-`sync` refreshes the linked application's and OAuth client's metadata from the issuer, updates the local redirect URI/scopes when a client is linked, and preserves unrelated project settings. It validates the issuer and remote response before writing the config atomically. Passing an application ID switches the current folder to that application:
+`sync` compares the linked application's and OAuth client's remote metadata with `.aid.json`, prints an exact field-by-field change plan, updates only changed metadata, and preserves unrelated project settings. It validates the issuer and remote response before writing the config atomically. Use `--dry-run` to inspect the plan without changing files. If there are no differences, sync leaves the file and its timestamp untouched. Passing an application ID switches the current folder to that application:
 
 ```sh
 aid sync
