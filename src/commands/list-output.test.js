@@ -9,10 +9,11 @@ import { fileURLToPath } from "node:url";
 
 const entry = fileURLToPath(new URL("../../bin/aid.js", import.meta.url));
 
-function runCli(args, env) {
+function runCli(args, env, cwd = process.cwd()) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [entry, ...args], {
       env,
+      cwd,
       stdio: ["ignore", "pipe", "pipe"]
     });
     let stdout = "";
@@ -46,7 +47,8 @@ test("resource list JSON is filterable, clean, and excludes client secrets", asy
     if (req.url === "/clients") {
       res.end(JSON.stringify([
         { client_id: "web-client", name: "Web Frontend", public: true, app_id: "app-1", redirect_uris: ["https://example.test/callback"], scopes: ["openid"], client_secret: "never-print-client-secret" },
-        { client_id: "mobile-client", name: "Mobile App", public: true, app_id: "app-2", redirect_uris: ["myapp://callback"], scopes: ["openid"] }
+        { client_id: "mobile-client", name: "Mobile App", public: true, app_id: "app-2", redirect_uris: ["myapp://callback"], scopes: ["openid"] },
+        { client_id: "orphan-client", name: "Detached Client", public: true, app_id: "missing-app", redirect_uris: ["https://orphan.test/callback"], scopes: ["openid"] }
       ]));
       return;
     }
@@ -55,10 +57,12 @@ test("resource list JSON is filterable, clean, and excludes client secrets", asy
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 
   const configHome = await fs.mkdtemp(path.join(os.tmpdir(), "aid-cli-list-output-"));
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "aid-cli-client-relations-"));
   t.after(async () => {
     server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
     await fs.rm(configHome, { recursive: true, force: true });
+    await fs.rm(projectDir, { recursive: true, force: true });
   });
 
   const sessionDir = path.join(configHome, "aidc");
@@ -84,12 +88,34 @@ test("resource list JSON is filterable, clean, and excludes client secrets", asy
   }]);
   assert.doesNotMatch(apps.stdout, /never-print/);
 
-  const clients = await runCli(["clients", "list", "--json"], env);
+  await fs.writeFile(path.join(projectDir, ".aid.json"), JSON.stringify({
+    issuer: env.AIDC_ISSUER,
+    app_id: "app-1",
+    client_id: "web-client",
+    redirect_uri: "https://example.test/old-callback"
+  }));
+  const clients = await runCli(["clients", "list", "--json"], env, projectDir);
   assert.equal(clients.code, 0, clients.stderr);
   const parsedClients = JSON.parse(clients.stdout);
-  assert.equal(parsedClients.length, 2);
+  assert.equal(parsedClients.length, 3);
   assert.equal(parsedClients[0].client_id, "web-client");
+  assert.equal(parsedClients[0].application_name, "Production Web");
+  assert.equal(parsedClients[0].relationship_status, "REDIRECT MISMATCH");
+  assert.equal(parsedClients[0].redirect_uri_mismatch, true);
+  assert.equal(parsedClients[1].application_name, "Mobile");
+  assert.equal(parsedClients[2].relationship_status, "ORPHANED: app missing");
   assert.equal(Object.hasOwn(parsedClients[0], "client_secret"), false);
   assert.doesNotMatch(clients.stdout, /never-print-client-secret/);
   assert.doesNotMatch(clients.stdout, /CLIENT ID/);
+
+  await fs.writeFile(path.join(projectDir, ".aid.json"), JSON.stringify({
+    issuer: env.AIDC_ISSUER,
+    app_id: "app-1",
+    client_id: "mobile-client",
+    redirect_uri: "myapp://callback"
+  }));
+  const mislinked = await runCli(["clients", "list", "--json"], env, projectDir);
+  assert.equal(mislinked.code, 0, mislinked.stderr);
+  const mislinkedClient = JSON.parse(mislinked.stdout).find((client) => client.client_id === "mobile-client");
+  assert.equal(mislinkedClient.relationship_status, "MISLINKED");
 });
