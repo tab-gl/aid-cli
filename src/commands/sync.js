@@ -56,7 +56,7 @@ export async function sync(args = []) {
     }
   }
 
-  if (client) {
+  if (config.client_id !== undefined && config.client_id !== null) {
     if (!client || typeof client !== "object" || Array.isArray(client) ||
         client.client_id !== config.client_id ||
         (client.app_id !== undefined && client.app_id !== null && String(client.app_id) !== config.app_id)) {
