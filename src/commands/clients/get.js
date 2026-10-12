@@ -1,21 +1,37 @@
 import { apiJson } from "../../api/client.js";
-import { fields } from "../../ui/format.js";
+import { fields, jsonOutput } from "../../ui/format.js";
 
-export async function get(args) {
-  const [id] = args;
-
-  if (!id) {
-    throw new Error("Usage: aid clients get <client_id>");
+export async function get(args = []) {
+  const [id, ...rest] = args;
+  const json = rest.length === 1 && rest[0] === "--json";
+  if (!id || (rest.length && !json)) {
+    throw new Error("Usage: aid clients get <client_id> [--json]");
   }
 
-  const c = await apiJson(`/clients/${encodeURIComponent(id)}`);
+  const client = await apiJson(`/clients/${encodeURIComponent(id)}`);
+  if (!client || typeof client !== "object" || Array.isArray(client)) {
+    throw new Error("The API returned an unexpected OAuth client response.");
+  }
+
+  if (json) {
+    jsonOutput({
+      ...(client.client_id !== undefined ? { client_id: client.client_id } : {}),
+      ...(client.name !== undefined ? { name: client.name } : {}),
+      ...(client.public !== undefined ? { public: client.public } : {}),
+      ...(client.app_id !== undefined ? { app_id: client.app_id } : {}),
+      ...(client.redirect_uris !== undefined ? { redirect_uris: client.redirect_uris } : {}),
+      ...(client.scopes !== undefined ? { scopes: client.scopes } : {}),
+      ...(client.created_at !== undefined ? { created_at: client.created_at } : {})
+    });
+    return;
+  }
 
   fields([
-    ["Client ID", c.client_id],
-    ["Name", c.name],
-    ["Type", c.public ? "public" : "confidential"],
-    ["Redirect URIs", (c.redirect_uris || []).join("\n")],
-    ["Scopes", (c.scopes || []).join(" ")],
-    ["Created", c.created_at]
+    ["Client ID", client.client_id],
+    ["Name", client.name],
+    ["Type", client.public ? "public" : "confidential"],
+    ["Redirect URIs", (client.redirect_uris || []).join("\n")],
+    ["Scopes", (client.scopes || []).join(" ")],
+    ["Created", client.created_at]
   ]);
 }
