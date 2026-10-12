@@ -6,7 +6,7 @@ All notable changes to the Ace ID CLI are documented here.
 
 ### Security and reliability
 - Made help, tables, field summaries, and command descriptions responsive to narrow terminal widths without truncating long resource IDs; improved spinner lifecycle and stream-specific color handling.
-- Reduced project detection startup work with parallel filesystem checks and lower-memory Android language detection.
+- Reduced project detection startup work with parallel filesystem checks and lower-memory Android language detection; report malformed or unreadable project manifests instead of silently misclassifying the project.
 - Added step-based progress to interactive setup, including active-step percentage, skipped/failure states, and validation of remote app/client creation responses.
 - Made `aid sync` validate issuer and remote app/client identity, refresh linked metadata, remove explicitly cleared stale fields, preserve unrelated settings, and detect local edits during remote reads.
 - Prevented relinking from carrying a stale OAuth client or redirect configuration across different applications; verify the selected OAuth client belongs to the linked app before writing `.aid.json`.
@@ -17,7 +17,7 @@ All notable changes to the Ace ID CLI are documented here.
 - Re-hardened stored session permissions on load and rejected symlink-based token files.
 - Added a local setup recovery journal and `aid setup --recover` for interrupted remote resource cleanup.
 - Bounded and redacted API, OAuth, and deletion error details.
-- Added regression coverage for refresh races, setup recovery, and API error redaction.
+- Added regression coverage for refresh races, setup recovery, API error redaction, linked-client ownership, and malformed project manifests.
 
 ### Fixed
 - Keep API, OAuth token, and Android SDK request deadlines active while response bodies are consumed.
