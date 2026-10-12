@@ -17,12 +17,15 @@ test("step progress shows the active step and advances as steps complete", () =>
   });
 
   progress.start(0);
-  assert.match(output.read(), /7%\s+1\/3\s+Detect project/);
+  assert.match(output.read(), /17%\s+1\/3\s+Detect project/);
   progress.complete(0, "Project detected");
   assert.match(output.read(), /33%\s+1\/3\s+Project detected/);
   progress.start(1);
   progress.complete(1, "Authentication ready");
   assert.match(output.read(), /67%\s+2\/3\s+Authentication ready/);
+  progress.skip(2, "SDK step: not applicable");
+  assert.match(output.read(), /100%\s+3\/3\s+SDK step: not applicable/);
+  assert.match(output.read(), /– \[.*\] 100%/);
 });
 
 test("step progress reports failures without claiming completion", () => {
