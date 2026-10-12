@@ -23,9 +23,9 @@ USAGE
 SUBCOMMANDS
 `);
       commandList([
-        ["list", "List applications"],
+        ["list [--search <text>] [--limit <n>] [--json]", "List/filter applications or emit JSON"],
         ["create --name <name>", "Create an application"],
-        ["get <id>", "Show one application"],
+        ["get <id> [--json]", "Show one application"],
         ["update <id>", "Update an application"],
         ["delete <id>", "Delete an application"]
       ]);
