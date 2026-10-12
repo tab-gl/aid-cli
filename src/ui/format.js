@@ -99,11 +99,16 @@ export function fields(rows) {
 
   console.log("");
   for (const [rawLabel, rawValue] of visibleRows) {
-    const label = truncate(rawLabel, labelWidth);
+    const label = String(rawLabel);
     const value = String(rawValue);
     const inlineWidth = width - labelWidth - 4;
     const valueLines = wrapText(value, valueWidth);
-    if (visibleLength(value) <= inlineWidth && !value.includes("\n")) {
+    if (label.length > labelWidth) {
+      for (const line of wrapText(label, labelWidth)) console.log(`  ${dim(line)}`);
+      for (const line of wrapText(value, width - 4)) console.log(`    ${bold(line)}`);
+      continue;
+    }
+    if (visibleLength(value) <= inlineWidth && !value.includes("\\n")) {
       console.log(`  ${dim(label.padEnd(labelWidth))}  ${bold(value)}`);
       continue;
     }
