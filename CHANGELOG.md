@@ -5,6 +5,8 @@ All notable changes to the Ace ID CLI are documented here.
 ## [Unreleased]
 
 ### Security and reliability
+- Made `aid sync` validate remote app/client identity and metadata, remove explicitly cleared stale fields, preserve unrelated settings, and detect local config edits during remote reads.
+- Improved interactive setup progress with a visible active-step percentage and distinct skipped-step status; report missing-terminal authentication failures as a failed step.
 - Added a step-based progress display to interactive setup and validation for remote app/client creation responses.
 - Improved `sync` to validate issuer and remote resource data, refresh linked app/client metadata, preserve unrelated settings, and leave malformed or mismatched config untouched.
 - Prevented relinking from carrying a stale OAuth client or redirect configuration across different applications.
