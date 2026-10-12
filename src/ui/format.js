@@ -153,8 +153,7 @@ export function table(rows, columns) {
     // Narrow terminals get a stacked layout rather than a broken wide table.
     const primaryWidth = Math.max(8, width - 4);
     for (const row of normalized) {
-      const title = truncate(row[0], primaryWidth);
-      console.log(`  ${bold(title)}`);
+      for (const titleLine of wrapText(row[0], primaryWidth)) console.log(`  ${bold(titleLine)}`);
       for (let index = 1; index < columns.length; index++) {
         const prefix = `    ${headers[index]}: `;
         const available = Math.max(4, width - prefix.length);
