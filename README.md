@@ -125,6 +125,20 @@ aid link <app-id>
 aid sync
 ```
 
+List and detail commands support machine-readable output and local filtering:
+
+```sh
+aid apps list --search web --limit 10
+aid apps list --json
+aid apps get <app-id> --json
+aid clients list --search localhost --json
+aid clients get <client-id> --json
+aid whoami --json
+aid test-auth --json
+```
+
+Use `--search <text>` for case-insensitive matching and `--limit <n>` to cap displayed results. JSON output is printed without banners or table formatting, making it suitable for shell scripts and CI. Client JSON deliberately excludes secret/token fields.
+
 `app` is accepted for compatibility. Common application actions also route to the canonical `apps` command:
 
 ```sh
