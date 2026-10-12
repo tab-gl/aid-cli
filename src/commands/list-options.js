@@ -34,10 +34,11 @@ export function parseListOptions(args, usage) {
 }
 
 export function filterResources(resources, searchText, limit, searchableValues) {
-  const filtered = searchText
+  const normalizedSearch = String(searchText ?? "").trim().toLocaleLowerCase();
+  const filtered = normalizedSearch
     ? resources.filter((resource) =>
         searchableValues(resource).some((value) =>
-          String(value ?? "").toLocaleLowerCase().includes(searchText)
+          String(value ?? "").toLocaleLowerCase().includes(normalizedSearch)
         )
       )
     : resources;
