@@ -167,6 +167,7 @@ If `.aid.json` already exists, linking refuses to overwrite it unless you explic
 
 ```sh
 aid sync
+aid sync --dry-run
 aid sync <app-id>
 ```
 
