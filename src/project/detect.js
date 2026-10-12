@@ -6,8 +6,8 @@ const SDK_PACKAGE = "ace-id-sdk";
 // Never walk upward, inspect parent folders, or infer a project from an enclosing workspace.
 export async function detectProject() {
   const root = process.cwd();
-  const pkg = await readJson(path.join(root, "package.json"));
-  const files = new Set(await readTopLevelFiles(root));
+  const [pkg, topLevelFiles] = await Promise.all([readJson(path.join(root, "package.json")), readTopLevelFiles(root)]);
+  const files = new Set(topLevelFiles);
 
   if (await isAndroidProject(root, files)) {
     const language = await detectAndroidLanguage(root);
@@ -150,49 +150,29 @@ async function exists(file) {
 }
 
 async function detectAndroidLanguage(root) {
-  const roots = [
-    path.join(root, "app", "src", "main"),
-    path.join(root, "src", "main")
-  ];
-
-  let java = false;
-  let kotlin = false;
-
-  for (const sourceRoot of roots) {
-    const files = await findSourceFiles(sourceRoot);
-    java ||= files.some((file) => file.endsWith(".java"));
-    kotlin ||= files.some((file) => file.endsWith(".kt") || file.endsWith(".kts"));
-  }
-
-  return kotlin ? "kotlin" : java ? "java" : "kotlin";
-}
-
-async function findSourceFiles(root) {
-  const results = [];
+  const roots = [path.join(root, "app", "src", "main"), path.join(root, "src", "main")];
+  const found = { java: false, kotlin: false };
 
   async function walk(dir) {
+    if (found.kotlin && found.java) return;
     let entries;
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-
+    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
-      if (entry.name === "build" || entry.name === ".gradle") continue;
-      const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        await walk(full);
+        if (["build", ".gradle", ".git", "node_modules", ".idea"].includes(entry.name)) continue;
+        await walk(path.join(dir, entry.name));
+        if (found.kotlin && found.java) return;
       } else if (entry.isFile()) {
-        results.push(full);
+        found.java ||= entry.name.endsWith(".java");
+        found.kotlin ||= entry.name.endsWith(".kt") || entry.name.endsWith(".kts");
+        if (found.kotlin && found.java) return;
       }
     }
   }
 
-  await walk(root);
-  return results;
+  await Promise.all(roots.map(walk));
+  return found.kotlin ? "kotlin" : found.java ? "java" : "kotlin";
 }
-
 async function hasReactSource(root) {
   const candidates = [
     "src/App.jsx",
@@ -201,9 +181,6 @@ async function hasReactSource(root) {
     "src/main.tsx"
   ];
 
-  for (const file of candidates) {
-    if (await exists(path.join(root, file))) return true;
-  }
-
-  return false;
+  const matches = await Promise.all(candidates.map((file) => exists(path.join(root, file))));
+  return matches.some(Boolean);
 }
