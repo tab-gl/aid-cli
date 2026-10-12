@@ -59,9 +59,9 @@ async function fixture(t, config, overrides = {}) {
   };
 }
 
-function runSync(root, env) {
+function runSync(root, env, args = []) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [entry, "sync"], {
+    const child = spawn(process.execPath, [entry, "sync", ...args], {
       cwd: root,
       env,
       stdio: ["ignore", "pipe", "pipe"]
@@ -225,4 +225,54 @@ test("sync starts independent app and client metadata requests concurrently", as
     "/apps/app-1",
     "/clients/client-1"
   ]);
+});
+
+
+test("sync dry-run reports exact metadata changes without writing the config", async (t) => {
+  const state = await fixture(t);
+  const configPath = path.join(state.root, ".aid.json");
+  const original = JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1",
+    app_name: "Old app name",
+    app_description: "Remote description",
+    redirect_uri: "https://example.test/old-callback",
+    scopes: ["openid"],
+    keep: "untouched"
+  }, null, 2);
+  await fs.writeFile(configPath, original);
+
+  const result = await runSync(state.root, state.env, ["--dry-run"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Application name: "Old app name" -> "Remote app name"/);
+  assert.match(result.stdout, /Redirect URI: "https:\\/\\/example.test\\/old-callback" -> "https:\\/\\/example.test\\/new-callback"/);
+  assert.match(result.stdout, /Scopes: \\["openid"\\] -> \\["openid","profile"\\]/);
+  assert.match(result.stdout, /No files were changed/);
+  assert.equal(await fs.readFile(configPath, "utf8"), original);
+});
+
+test("sync does not rewrite config when remote metadata is unchanged", async (t) => {
+  const state = await fixture(t, undefined, {
+    app: { id: "app-1", name: "Remote app name", description: "Remote description" },
+    client: { client_id: "client-1", redirect_uris: ["https://example.test/new-callback"], scopes: ["openid", "profile"] }
+  });
+  const configPath = path.join(state.root, ".aid.json");
+  const original = JSON.stringify({
+    issuer: state.issuer,
+    app_id: "app-1",
+    client_id: "client-1",
+    app_name: "Remote app name",
+    app_description: "Remote description",
+    redirect_uri: "https://example.test/new-callback",
+    scopes: ["openid", "profile"],
+    synced_at: "keep-this",
+    custom_setting: true
+  }, null, 2);
+  await fs.writeFile(configPath, original);
+
+  const result = await runSync(state.root, state.env);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /No metadata changes detected/);
+  assert.equal(await fs.readFile(configPath, "utf8"), original);
 });
