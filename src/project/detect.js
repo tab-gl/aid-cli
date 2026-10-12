@@ -119,24 +119,48 @@ async function isAndroidProject(root, files) {
 async function readTopLevelFiles(root) {
   try {
     return await fs.readdir(root);
-  } catch {
-    return [];
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw new Error(`Could not inspect project directory: ${err.message}`);
   }
 }
 
 async function readJson(file) {
+  let raw;
   try {
-    return JSON.parse(await fs.readFile(file, "utf8"));
-  } catch {
-    return null;
+    raw = await fs.readFile(file, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw new Error(`Could not read ${path.basename(file)}: ${err.message}`);
   }
+
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new Error(`${path.basename(file)} contains invalid JSON. Fix it before running setup.`);
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${path.basename(file)} must contain a JSON object.`);
+  }
+
+  for (const key of ["dependencies", "devDependencies", "peerDependencies"]) {
+    if (value[key] !== undefined &&
+        (!value[key] || typeof value[key] !== "object" || Array.isArray(value[key]))) {
+      throw new Error(`${path.basename(file)} field "${key}" must be an object.`);
+    }
+  }
+
+  return value;
 }
 
 async function readText(file) {
   try {
     return await fs.readFile(file, "utf8");
-  } catch {
-    return "";
+  } catch (err) {
+    if (err.code === "ENOENT") return "";
+    throw new Error(`Could not read ${path.basename(file)}: ${err.message}`);
   }
 }
 
@@ -144,8 +168,9 @@ async function exists(file) {
   try {
     await fs.access(file);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    if (err.code === "ENOENT") return false;
+    throw new Error(`Could not inspect ${path.basename(file)}: ${err.message}`);
   }
 }
 
