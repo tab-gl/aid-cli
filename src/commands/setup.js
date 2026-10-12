@@ -358,8 +358,8 @@ async function inspectExistingSetup(configPath) {
 }
 
 function sdkRangeCompatibility(range, version) {
-  const match = String(range).trim().match(/^(\\^|~|=)?v?(\\d+)\\.(\\d+)\\.(\\d+)$/);
-  const installed = String(version).trim().match(/^v?(\\d+)\\.(\\d+)\\.(\\d+)$/);
+  const match = String(range).trim().match(/^(\^|~|=)?v?(\d+)\.(\d+)\.(\d+)$/);
+  const installed = String(version).trim().match(/^v?(\d+)\.(\d+)\.(\d+)$/);
   if (!match || !installed) return null;
   const [, operator = "", majorText, minorText, patchText] = match;
   const expected = [Number(majorText), Number(minorText), Number(patchText)];
