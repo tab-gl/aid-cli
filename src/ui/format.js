@@ -256,7 +256,7 @@ export function table(rows, columns) {
   }
   if (!Array.isArray(columns) || columns.length === 0) return;
   if (rows.length === 0) {
-    console.log(`\n${dim("(empty")}\n`);
+    console.log(`\n${dim("(empty)")}\n`);
     return;
   }
 
