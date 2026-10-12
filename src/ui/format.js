@@ -317,11 +317,30 @@ export function commandList(rows) {
   const width = terminalWidth();
   const indent = "    ";
   const gap = "  ";
+  const entries = rows.map(([command, description = ""]) => ({
+    command: String(command),
+    description: String(description)
+  }));
+  const commandWidth = Math.max(...entries.map(({ command }) => visibleLength(command)));
+  const alignColumns = width >= 72 &&
+    commandWidth <= 30 &&
+    width - visibleLength(indent) - commandWidth - visibleLength(gap) >= 24;
+
   console.log("");
 
-  for (const [rawCommand, rawDescription = ""] of rows) {
-    const command = String(rawCommand);
-    const description = String(rawDescription);
+  for (const { command, description } of entries) {
+    if (alignColumns) {
+      const descriptionWidth = Math.max(
+        1,
+        width - visibleLength(indent) - commandWidth - visibleLength(gap) - 1
+      );
+      const descriptionLines = wrapText(description, descriptionWidth);
+      console.log(`${indent}${bold(padDisplay(command, commandWidth))}${gap}${descriptionLines[0]}`);
+      const continuationIndent = `${indent}${" ".repeat(commandWidth)}${gap}`;
+      for (const line of descriptionLines.slice(1)) console.log(`${continuationIndent}${line}`);
+      continue;
+    }
+
     if (visibleLength(indent + command + gap) + visibleLength(description) <= width) {
       console.log(`${indent}${bold(command)}${gap}${description}`);
       continue;
