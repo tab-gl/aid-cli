@@ -54,13 +54,9 @@ export async function setup(args = []) {
   }
 
   if (await fileExists(configPath) && !values.force) {
-    if (!interactive) {
-      success("Ace ID is already configured for this project.");
-      console.log(`  ${dim("CONFIG")}  ${CONFIG_FILE}`);
-      console.log(`  ${dim("RE-RUN")}  aid setup --force`);
-      return;
-    }
-    if (!(await confirm("An existing .aid.json was found. Replace its configuration? [y/N] "))) {
+    await inspectExistingSetup(configPath);
+    if (!interactive) return;
+    if (!(await confirm("An existing .aid.json was found. Replace its configuration and create new remote resources? [y/N] "))) {
       console.log("Setup cancelled.");
       return;
     }
@@ -255,6 +251,122 @@ export async function setup(args = []) {
     ["Redirect URI", settings.redirect], ["Scopes", settings.scopes.join(" ")], ["SDK", project.sdk || "none"], ["SDK status", sdkStatus],
     ...(project.sdkPath ? [["SDK path", project.sdkPath]] : []), ["Config", CONFIG_FILE]
   ]);
+}
+
+async function inspectExistingSetup(configPath) {
+  let config;
+  try {
+    config = JSON.parse(await fs.readFile(configPath, "utf8"));
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new Error(`.aid.json contains invalid JSON. Repair the file manually or back it up before using \`aid setup --force\`.`);
+    }
+    throw err;
+  }
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    throw new Error(".aid.json must contain a JSON object. Existing configuration was not changed.");
+  }
+
+  const project = await detectProject();
+  const packageJson = await readPackageJson();
+  const dependencyVersion = packageJson
+    ? [packageJson.dependencies, packageJson.devDependencies, packageJson.peerDependencies]
+        .map((deps) => deps?.[project.sdk])
+        .find((version) => typeof version === "string") || null
+    : null;
+  const installedVersion = await readInstalledSdkVersion(project.sdk);
+  const issues = [];
+
+  if (config.issuer !== ISSUER) issues.push("Issuer differs from the active CLI issuer.");
+  for (const [key, detected, label] of [
+    ["project_type", project.type, "project type"],
+    ["framework", project.label, "framework"],
+    ["sdk", project.sdk || null, "SDK"]
+  ]) {
+    if (config[key] !== detected) issues.push(`Detected ${label} differs from .aid.json (${config[key] ?? "unset"} -> ${detected ?? "unset"}).`);
+  }
+
+  if (project.sdkMode === "build") {
+    if (!dependencyVersion) {
+      issues.push(`SDK dependency ${project.sdk} is not declared in package.json.`);
+    }
+    if (!installedVersion) {
+      issues.push(`SDK ${project.sdk} is declared/detected but is not installed in node_modules.`);
+    }
+    if (dependencyVersion && installedVersion) {
+      console.log(`  ${dim("SDK RANGE")}  ${project.sdk}: ${dependencyVersion}`);
+      console.log(`  ${dim("SDK VERSION")}  Installed: ${installedVersion}`);
+      if (config.sdk_version && config.sdk_version !== installedVersion) {
+        issues.push(`Recorded SDK version ${config.sdk_version} differs from installed ${installedVersion}.`);
+      }
+    } else {
+      console.log(`  ${dim("SDK VERSION")}  ${project.sdk}: declared ${dependencyVersion || "no"}, installed ${installedVersion || "no"}`);
+    }
+  } else if (project.sdkMode === "android") {
+    const sdkPath = config.sdk_path || path.join("libs", ANDROID_SDK_ASSET);
+    const present = await fileExists(path.resolve(process.cwd(), sdkPath));
+    console.log(`  ${dim("SDK VERSION")}  Android artifact: ${present ? sdkPath : "missing"}`);
+    if (!present) issues.push("The configured Android SDK artifact is missing.");
+  }
+
+  heading("EXISTING SETUP");
+  fields([
+    ["Project", project.label],
+    ["Application ID", config.app_id || "(not linked)"],
+    ["Client ID", config.client_id || "(not linked)"],
+    ["SDK", project.sdk || "none"],
+    ["Config", CONFIG_FILE]
+  ]);
+  if (!issues.length) {
+    success("No local project/configuration drift detected. Setup will not create duplicate remote resources.");
+    console.log("  To refresh remote app/client metadata, run: aid sync");
+    console.log("  Use aid setup --force only when you intentionally want to create a replacement setup.");
+    return;
+  }
+
+  warn("Configuration drift detected:");
+  for (const issue of issues) console.log(`  • ${issue}`);
+  console.log("\\nMinimal repair suggestions:");
+  if (issues.some((issue) => /SDK dependency .* is not declared/.test(issue))) {
+    console.log(`  • Install the existing SDK dependency with ${project.packageManager === "pnpm" ? "pnpm add" : project.packageManager === "yarn" ? "yarn add" : project.packageManager === "bun" ? "bun add" : "npm install"} ${project.sdk}.`);
+  }
+  if (issues.some((issue) => /not installed in node_modules/.test(issue))) {
+    console.log(`  • Restore declared dependencies with ${project.packageManager === "pnpm" ? "pnpm install" : project.packageManager === "yarn" ? "yarn install" : project.packageManager === "bun" ? "bun install" : "npm install"}.`);
+  }
+  if (issues.some((issue) => /project type|framework|SDK differs|Recorded SDK version/.test(issue))) {
+    console.log(`  • Refresh local project metadata without creating a new app: aid link ${config.app_id || "<app-id>"} --force`);
+  }
+  if (issues.some((issue) => /Issuer differs/.test(issue))) {
+    console.log("  • Confirm AIDC_ISSUER is set to the issuer that owns this project before syncing or relinking.");
+  }
+  if (issues.some((issue) => /Android SDK artifact is missing/.test(issue))) {
+    console.log("  • Re-run setup only after confirming the target project and Android SDK artifact path.");
+  }
+  if (!issues.some((issue) => /SDK dependency|node_modules|project type|framework|SDK differs|Recorded SDK version|Issuer differs|Android SDK artifact/.test(issue))) {
+    console.log("  • Run aid sync to refresh remote metadata; existing remote resources will not be recreated.");
+  }
+}
+
+async function readPackageJson() {
+  try {
+    return JSON.parse(await fs.readFile(path.join(process.cwd(), "package.json"), "utf8"));
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    if (err instanceof SyntaxError) throw new Error("package.json contains invalid JSON; fix it before running setup.");
+    throw err;
+  }
+}
+
+async function readInstalledSdkVersion(sdk) {
+  if (typeof sdk !== "string" || !sdk) return null;
+  const packagePath = path.join(process.cwd(), "node_modules", ...sdk.split("/"), "package.json");
+  try {
+    const metadata = JSON.parse(await fs.readFile(packagePath, "utf8"));
+    return typeof metadata.version === "string" ? metadata.version : null;
+  } catch (err) {
+    if (err.code === "ENOENT" || err instanceof SyntaxError) return null;
+    throw new Error(`Could not inspect installed SDK metadata: ${err.message}`);
+  }
 }
 
 async function collectWizardValues(defaults) {
