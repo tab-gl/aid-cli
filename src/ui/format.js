@@ -6,6 +6,57 @@ import {
   yellow
 } from "./colors.js";
 
+const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+
+function terminalWidth() {
+  const width = Number(process.stdout.columns);
+  return Number.isFinite(width) && width > 0 ? Math.max(12, Math.floor(width)) : 80;
+}
+
+function visibleLength(value) {
+  return [...String(value).replace(ANSI_PATTERN, "")].length;
+}
+
+function truncate(value, width) {
+  const chars = [...String(value)];
+  if (width <= 0) return "";
+  if (chars.length <= width) return chars.join("");
+  if (width === 1) return "…";
+  return chars.slice(0, width - 1).join("") + "…";
+}
+
+function wrapText(value, width) {
+  const text = String(value ?? "");
+  if (width < 1) return [""];
+  const lines = [];
+  for (const paragraph of text.split(/\r?\n/)) {
+    let line = "";
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (!line) {
+        if ([...word].length <= width) line = word;
+        else {
+          const chars = [...word];
+          while (chars.length > width) lines.push(chars.splice(0, width).join(""));
+          line = chars.join("");
+        }
+      } else if ([...line].length + 1 + [...word].length <= width) {
+        line += ` ${word}`;
+      } else {
+        lines.push(line);
+        if ([...word].length <= width) line = word;
+        else {
+          const chars = [...word];
+          while (chars.length > width) lines.push(chars.splice(0, width).join(""));
+          line = chars.join("");
+        }
+      }
+    }
+    if (line) lines.push(line);
+    else if (!paragraph) lines.push("");
+  }
+  return lines.length ? lines : [""];
+}
+
 /* ── Status lines ───────────────────────── */
 
 export function success(message) {
@@ -21,90 +72,99 @@ export function warn(message) {
 }
 
 export function info(message) {
-  console.log(`  ${message}`);
+  const width = terminalWidth();
+  for (const line of wrapText(message, width - 2)) console.log(`  ${line}`);
 }
 
 /* ── Headings ───────────────────────────── */
 
 export function heading(text) {
-  console.log(`\n${dim(text.toUpperCase())}\n`);
+  console.log(`\n${dim(String(text).toUpperCase())}\n`);
 }
 
 /* ── Key / value block ──────────────────── */
 
-/*
- * Prints aligned key-value rows:
- *
- *   Client ID    c_h2q2yjdkoy5w
- *   Name         OAuth Test
- *   Type         public
- *
- * Labels are dim, values are bold. Pads to the
- * longest label so colon-free output still
- * reads as a table.
- */
 export function fields(rows) {
-  if (rows.length === 0) return;
-
-  const labelWidth = Math.max(
-    ...rows.map(([k]) => k.length)
+  const visibleRows = (Array.isArray(rows) ? rows : []).filter(
+    (row) => Array.isArray(row) && row.length >= 2 && row[1] !== undefined && row[1] !== null
   );
+  if (visibleRows.length === 0) return;
+
+  const width = terminalWidth();
+  const labelWidth = Math.min(
+    24,
+    Math.max(1, Math.min(Math.max(...visibleRows.map(([label]) => String(label).length)), Math.floor(width / 3)))
+  );
+  const valueWidth = Math.max(8, width - labelWidth - 6);
 
   console.log("");
-
-  for (const [label, value] of rows) {
-    if (value === undefined || value === null) continue;
-
-    const padded = label.padEnd(labelWidth);
-    console.log(`  ${dim(padded)}  ${bold(String(value))}`);
+  for (const [rawLabel, rawValue] of visibleRows) {
+    const label = truncate(rawLabel, labelWidth);
+    const value = String(rawValue);
+    const inlineWidth = width - labelWidth - 4;
+    const valueLines = wrapText(value, valueWidth);
+    if (visibleLength(value) <= inlineWidth && !value.includes("\n")) {
+      console.log(`  ${dim(label.padEnd(labelWidth))}  ${bold(value)}`);
+      continue;
+    }
+    console.log(`  ${dim(label)}`);
+    for (const line of valueLines) console.log(`    ${bold(line)}`);
   }
-
   console.log("");
 }
 
-/* ── Table ──────────────────────────────── */
+/* ── Responsive table ───────────────────── */
 
-/*
- * Simple two-column table. Column widths are
- * computed from the data, not hardcoded, so
- * long client_ids or names don't wrap on
- * narrow terminals.
- */
 export function table(rows, columns) {
+  if (!Array.isArray(rows)) {
+    throw new Error("The API returned an unexpected list response. Expected an array.");
+  }
+  if (!Array.isArray(columns) || columns.length === 0) return;
   if (rows.length === 0) {
     console.log(`\n${dim("(empty)")}\n`);
     return;
   }
 
-  const widths = columns.map((col) =>
-    Math.max(
-      col.header.length,
-      ...rows.map((r) => String(col.value(r)).length)
-    )
+  const normalized = rows.map((row) => columns.map((column) => {
+    let value;
+    try {
+      value = column.value(row);
+    } catch {
+      value = null;
+    }
+    return value === undefined || value === null ? "—" : String(value);
+  }));
+  const headers = columns.map((column) => String(column.header));
+  const naturalWidths = headers.map((header, index) =>
+    Math.max(header.length, ...normalized.map((row) => row[index].length))
   );
-
-  const pad = (s, w) => String(s).padEnd(w);
+  const requiredWidth = 2 + naturalWidths.reduce((sum, width) => sum + width, 0) + 2 * (columns.length - 1);
+  const width = terminalWidth();
 
   console.log("");
-
-  // Header row
-  const header = columns
-    .map((col, i) => dim(pad(col.header, widths[i])))
-    .join("  ");
-  console.log(`  ${header}`);
-
-  // Divider
-  const divider = widths.map((w) => "─".repeat(w)).join("──");
-  console.log(`  ${dim(divider)}`);
-
-  // Body
-  for (const row of rows) {
-    const line = columns
-      .map((col, i) => pad(col.value(row), widths[i]))
-      .join("  ");
-    console.log(`  ${line}`);
+  if (requiredWidth <= width && naturalWidths.every((value) => value <= width)) {
+    const pad = (value, size) => String(value).padEnd(size);
+    console.log(`  ${headers.map((header, index) => dim(pad(header, naturalWidths[index]))).join("  ")}`);
+    console.log(`  ${dim(naturalWidths.map((size) => "─".repeat(size)).join("──"))}`);
+    for (const row of normalized) {
+      console.log(`  ${row.map((value, index) => pad(value, naturalWidths[index])).join("  ")}`);
+    }
+  } else {
+    // Narrow terminals get a stacked layout rather than a broken wide table.
+    const primaryWidth = Math.max(8, width - 4);
+    for (const row of normalized) {
+      const title = truncate(row[0], primaryWidth);
+      console.log(`  ${bold(title)}`);
+      for (let index = 1; index < columns.length; index++) {
+        const prefix = `    ${headers[index]}: `;
+        const available = Math.max(4, width - prefix.length);
+        const lines = wrapText(row[index], available);
+        console.log(`    ${dim(headers[index] + ":")} ${lines[0] ?? ""}`);
+        for (const line of lines.slice(1)) console.log(`      ${line}`);
+      }
+      console.log("");
+    }
   }
-
   console.log("");
 }
 
@@ -112,8 +172,8 @@ export function table(rows, columns) {
 
 export function usage(text) {
   console.log("");
-  for (const line of text.trim().split("\n")) {
-    console.log(`  ${line}`);
+  for (const line of String(text).trim().split("\n")) {
+    for (const wrapped of wrapText(line, terminalWidth() - 2)) console.log(`  ${wrapped}`);
   }
   console.log("");
 }
@@ -121,23 +181,28 @@ export function usage(text) {
 /* ── Responsive command list ───────────── */
 
 export function commandList(rows) {
-  if (rows.length === 0) return;
+  if (!Array.isArray(rows) || rows.length === 0) return;
 
-  const columns = process.stdout.columns || 80;
+  const width = terminalWidth();
   const indent = "    ";
   const gap = "  ";
-
   console.log("");
 
-  for (const [command, description] of rows) {
-    const oneLine = indent.length + command.length + gap.length + description.length;
-    if (oneLine <= columns) {
+  for (const [rawCommand, rawDescription = ""] of rows) {
+    const command = String(rawCommand);
+    const description = String(rawDescription);
+    const available = Math.max(8, width - indent.length - gap.length - command.length);
+    if (indent.length + command.length + gap.length + visibleLength(description) <= width) {
       console.log(`${indent}${bold(command)}${gap}${description}`);
-    } else {
-      console.log(`${indent}${bold(command)}`);
-      console.log(`${indent}  ${description}`);
+      continue;
+    }
+
+    const safeCommand = truncate(command, Math.max(8, width - indent.length));
+    console.log(`${indent}${bold(safeCommand)}`);
+    const descriptionIndent = `${indent}  `;
+    for (const line of wrapText(description, Math.max(8, width - descriptionIndent.length))) {
+      console.log(`${descriptionIndent}${line}`);
     }
   }
-
   console.log("");
 }
