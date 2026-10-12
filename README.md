@@ -107,7 +107,7 @@ Setup detects projects from the **current working directory only**. It does not 
 
 Supported detection includes Next.js, React, Vite, vanilla JavaScript, Android Java, and Android Kotlin. Package-manager detection supports npm, pnpm, Yarn, and Bun.
 
-The CLI is designed to work across Windows, macOS, Linux, WSL, and terminal environments such as Termux, provided Node.js 18+ is available.
+The CLI is designed to work across Windows, macOS, Linux, WSL, and terminal environments such as Termux, provided Node.js 18+ is available. Help text, key-value output, and resource tables adapt to narrow terminals; long IDs are wrapped rather than hidden, and spinner colors follow the actual output stream. Project detection performs independent filesystem checks concurrently and avoids collecting every Android source path into memory.
 
 ## Multiple applications and smart command routing
 
