@@ -154,16 +154,15 @@ fn create(argv: &[String]) -> Result<()> {
 
 fn get(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
-    let (id, rest) = match argv.split_first() {
-        Some((id, rest)) => (Some(id.as_str()), rest),
-        None => (None, &[][..]),
-    };
-    let as_json = rest.is_empty() || (rest.len() == 1 && rest[0] == "--json");
-    if id.is_none() || !as_json {
+    let Some((id, rest)) = argv.split_first() else {
         return Err(AidError::new(GET_USAGE));
-    }
-    let id = id.expect("checked");
-    let as_json = rest.len() == 1;
+    };
+    // v1 accepts `--json` only as the second token.
+    let as_json = match rest {
+        [] => false,
+        [flag] if flag == "--json" => true,
+        _ => return Err(AidError::new(GET_USAGE)),
+    };
 
     let app = api_get_json(&config, &format!("/apps/{}", encode_segment(id)))?;
     expect_object(&app, "The API returned an unexpected application response.")?;
