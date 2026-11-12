@@ -228,7 +228,9 @@ fn sdk_transport_error(config: &Config, err: HttpError) -> AidError {
             "SDK download request timed out after {}s.",
             config.request_timeout_label()
         )),
-        HttpError::Redirect => AidError::new("SDK download request failed: unexpected redirect."),
+        HttpError::Redirect(reason) => {
+            AidError::new(format!("SDK download request failed: {reason}."))
+        }
         HttpError::Transport(message) => {
             AidError::new(format!("SDK download request failed: {message}"))
         }

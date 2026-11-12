@@ -27,7 +27,12 @@ pub fn harden_dir(path: &Path) -> Result<()> {
         match fs::set_permissions(path, fs::Permissions::from_mode(PRIVATE_DIR_MODE)) {
             Ok(()) => {}
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err.into()),
+            Err(err) => {
+                return Err(AidError::new(format!(
+                    "Could not restrict permissions on {}: {err}",
+                    path.display()
+                )))
+            }
         }
     }
     #[cfg(not(unix))]
@@ -39,7 +44,12 @@ pub fn harden_dir(path: &Path) -> Result<()> {
 pub fn harden_file(path: &Path, mode: u32) -> Result<()> {
     #[cfg(unix)]
     {
-        fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+        fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(|err| {
+            AidError::new(format!(
+                "Could not restrict permissions on {}: {err}",
+                path.display()
+            ))
+        })?;
     }
     #[cfg(not(unix))]
     {
@@ -55,9 +65,19 @@ pub fn ensure_private_dir(path: &Path) -> Result<()> {
         let mut builder = fs::DirBuilder::new();
         builder.recursive(true);
         builder.mode(PRIVATE_DIR_MODE);
-        builder.create(path)?;
+        builder.create(path).map_err(|err| {
+            AidError::new(format!(
+                "Could not create the configuration directory {}: {err}",
+                path.display()
+            ))
+        })?;
     } else {
-        fs::create_dir_all(path)?;
+        fs::create_dir_all(path).map_err(|err| {
+            AidError::new(format!(
+                "Could not create the configuration directory {}: {err}",
+                path.display()
+            ))
+        })?;
     }
     harden_dir(path)
 }
@@ -90,6 +110,9 @@ pub fn write_atomic(path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
     let temp = temp_path_for(path)?;
 
     let result = (|| -> Result<()> {
+        let context = |err: std::io::Error| {
+            AidError::new(format!("Could not write {}: {err}", display_name(path)))
+        };
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -97,12 +120,12 @@ pub fn write_atomic(path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
             use std::os::unix::fs::OpenOptionsExt;
             options.mode(mode);
         }
-        let mut file = options.open(&temp)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
+        let mut file = options.open(&temp).map_err(context)?;
+        file.write_all(bytes).map_err(context)?;
+        file.sync_all().map_err(context)?;
         drop(file);
         harden_file(&temp, mode)?;
-        fs::rename(&temp, path)?;
+        replace_file(&temp, path)?;
         harden_file(path, mode)?;
         sync_parent(path);
         Ok(())
@@ -112,6 +135,58 @@ pub fn write_atomic(path: &Path, bytes: &[u8], mode: u32) -> Result<()> {
         let _ = fs::remove_file(&temp);
     }
     result
+}
+
+/// Replace `target` with `source` atomically.
+///
+/// POSIX `rename(2)` replaces an existing destination, but the Windows
+/// `MoveFileEx` wrapper in `std` refuses to overwrite — so a second token write
+/// would fail there. `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING` gives the
+/// same semantics as POSIX; if it is unavailable the fallback removes the
+/// destination first (still atomic from the reader's point of view, because the
+/// content is written to a temp file first).
+fn replace_file(source: &Path, target: &Path) -> Result<()> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn MoveFileExW(existing: *const u16, new: *const u16, flags: u32) -> i32;
+        }
+        const MOVEFILE_REPLACE_EXISTING: u32 = 0x1;
+        const MOVEFILE_WRITE_THROUGH: u32 = 0x8;
+
+        let to_wide = |path: &Path| -> Vec<u16> {
+            path.as_os_str()
+                .encode_wide()
+                .chain(std::iter::once(0))
+                .collect()
+        };
+        let existing = to_wide(source);
+        let new = to_wide(target);
+        let ok = unsafe {
+            MoveFileExW(
+                existing.as_ptr(),
+                new.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        };
+        if ok != 0 {
+            return Ok(());
+        }
+        let error = std::io::Error::last_os_error();
+        if target.exists() {
+            fs::remove_file(target)?;
+            return fs::rename(source, target).map_err(|_| error.into());
+        }
+        return Err(error.into());
+    }
+    #[cfg(not(windows))]
+    {
+        fs::rename(source, target)?;
+        Ok(())
+    }
 }
 
 /// Best-effort directory fsync so the rename itself is durable.
@@ -232,6 +307,60 @@ mod tests {
         write_json_atomic(&file, &json!({"a": 1}), false, PRIVATE_FILE_MODE).unwrap();
         let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn repeated_writes_replace_the_destination() {
+        // POSIX rename replaces; the Windows path uses MoveFileExW with
+        // MOVEFILE_REPLACE_EXISTING. Either way the second write must succeed.
+        let dir = temp_dir("replace");
+        let file = dir.join("tokens.json");
+        for value in 1..=5 {
+            write_json_atomic(&file, &json!({ "n": value }), false, PRIVATE_FILE_MODE).unwrap();
+        }
+        let text = fs::read_to_string(&file).unwrap();
+        assert!(text.contains("\"n\": 5"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn readers_never_observe_a_partial_document() {
+        // A writer rewrites the file while a reader keeps reading it: every read
+        // must be a complete JSON document (the file may briefly be absent).
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let dir = temp_dir("atomicity");
+        let file = dir.join("state.json");
+        let payload = json!({ "value": "x".repeat(4096) });
+        write_json_atomic(&file, &payload, false, PRIVATE_FILE_MODE).unwrap();
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let writer_stop = Arc::clone(&stop);
+        let writer_path = file.clone();
+        let writer = std::thread::spawn(move || {
+            for _ in 0..200 {
+                write_json_atomic(&writer_path, &payload, false, PRIVATE_FILE_MODE).unwrap();
+            }
+            writer_stop.store(true, Ordering::Relaxed);
+        });
+
+        let mut reads = 0;
+        while !stop.load(Ordering::Relaxed) {
+            match fs::read_to_string(&file) {
+                Ok(text) => {
+                    let parsed: serde_json::Value = serde_json::from_str(&text)
+                        .expect("a reader must never see a partial document");
+                    assert_eq!(parsed["value"].as_str().unwrap().len(), 4096);
+                    reads += 1;
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(err) => panic!("unexpected read error: {err}"),
+            }
+        }
+        writer.join().unwrap();
+        assert!(reads > 0, "the reader should have observed the file");
         fs::remove_dir_all(&dir).ok();
     }
 

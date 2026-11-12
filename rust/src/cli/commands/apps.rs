@@ -6,7 +6,7 @@ use crate::api::client::{encode_segment, Method};
 use crate::api::{api_fetch, api_get_json, api_json};
 use crate::cli::args::{self, value};
 use crate::cli::commands::list_options::{filter_resources, parse_list_options};
-use crate::cli::commands::{cell, expect_object, expect_object_array, value_text};
+use crate::cli::commands::{cell, expect_object, expect_object_array, non_empty, value_text};
 use crate::config::Config;
 use crate::error::{AidError, Result};
 use crate::terminal::{command_list, fields, json_output, show_banner, success, table, usage};
@@ -125,8 +125,7 @@ fn create(argv: &[String]) -> Result<()> {
         return Err(AidError::new(CREATE_USAGE));
     }
 
-    let name = parsed
-        .value("name")
+    let name = non_empty(parsed.value("name"))
         .ok_or_else(|| AidError::new("--name is required."))?
         .to_string();
 
@@ -154,7 +153,10 @@ fn create(argv: &[String]) -> Result<()> {
 
 fn get(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
-    let Some((id, rest)) = argv.split_first() else {
+    let Some((raw_id, rest)) = argv.split_first() else {
+        return Err(AidError::new(GET_USAGE));
+    };
+    let Some(id) = non_empty(Some(raw_id)) else {
         return Err(AidError::new(GET_USAGE));
     };
     // v1 accepts `--json` only as the second token.
@@ -189,11 +191,11 @@ fn get(argv: &[String]) -> Result<()> {
 
 fn update(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
-    let (id, rest) = match argv.split_first() {
-        Some((id, rest)) => (Some(id.as_str()), rest),
+    let (raw_id, rest) = match argv.split_first() {
+        Some((id, rest)) => (Some(id), rest),
         None => (None, &[][..]),
     };
-    let Some(id) = id else {
+    let Some(id) = non_empty(raw_id.map(String::as_str)) else {
         return Err(AidError::new(UPDATE_USAGE));
     };
 

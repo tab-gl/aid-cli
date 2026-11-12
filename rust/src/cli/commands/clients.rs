@@ -8,7 +8,7 @@ use crate::api::client::{encode_segment, Method};
 use crate::api::{api_fetch, api_get_json, api_json};
 use crate::cli::args::{self, flag, multi, value};
 use crate::cli::commands::list_options::{filter_resources, parse_list_options, string_list};
-use crate::cli::commands::{cell, expect_object, expect_object_array, value_text};
+use crate::cli::commands::{cell, expect_object, expect_object_array, non_empty, value_text};
 use crate::config::storage;
 use crate::config::Config;
 use crate::error::{AidError, Result};
@@ -336,8 +336,7 @@ fn create(argv: &[String]) -> Result<()> {
         return Err(AidError::new(CREATE_USAGE));
     }
 
-    let name = parsed
-        .value("name")
+    let name = non_empty(parsed.value("name"))
         .ok_or_else(|| AidError::new("--name is required."))?
         .to_string();
     let redirects = parsed.values("redirect");
@@ -405,8 +404,8 @@ fn create(argv: &[String]) -> Result<()> {
 
 fn get(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
-    let (id, rest) = match argv.split_first() {
-        Some((id, rest)) => (Some(id.as_str()), rest),
+    let (raw_id, rest) = match argv.split_first() {
+        Some((id, rest)) => (Some(id), rest),
         None => (None, &[][..]),
     };
     let as_json = match rest {
@@ -414,7 +413,7 @@ fn get(argv: &[String]) -> Result<()> {
         [flag] if flag == "--json" => true,
         _ => return Err(AidError::new(GET_USAGE)),
     };
-    let Some(id) = id else {
+    let Some(id) = non_empty(raw_id.map(String::as_str)) else {
         return Err(AidError::new(GET_USAGE));
     };
 
@@ -466,7 +465,7 @@ fn get(argv: &[String]) -> Result<()> {
 
 fn delete(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
-    let Some(id) = argv.first() else {
+    let Some(id) = non_empty(argv.first().map(String::as_str)) else {
         return Err(AidError::new(DELETE_USAGE));
     };
 
@@ -492,7 +491,7 @@ fn delete(argv: &[String]) -> Result<()> {
 
 fn rotate_secret(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
-    let Some(id) = argv.first() else {
+    let Some(id) = non_empty(argv.first().map(String::as_str)) else {
         return Err(AidError::new(ROTATE_USAGE));
     };
 

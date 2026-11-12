@@ -85,7 +85,7 @@ pub fn api_fetch(
                 config.request_timeout_label()
             )))
         }
-        Err(HttpError::Redirect) => {
+        Err(HttpError::Redirect(_)) => {
             return Err(AidError::new(
                 "API request was redirected unexpectedly; refusing to forward credentials.",
             ))

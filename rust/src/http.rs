@@ -19,8 +19,9 @@ pub struct RawResponse {
 pub enum HttpError {
     /// The request or response read exceeded the configured deadline.
     Timeout,
-    /// The server answered with a redirect, which is never followed.
-    Redirect,
+    /// A redirect that must not be followed (or that exceeded its budget).
+    /// The reason is user-facing and never contains credentials.
+    Redirect(String),
     /// Any other transport-level failure.
     Transport(String),
 }
@@ -77,26 +78,75 @@ impl<'a> Request<'a> {
         request
     }
 
-    /// Execute the request. Redirects are disabled at the agent level.
+    /// Execute the request.
+    ///
+    /// Redirects are followed manually (the agent never follows them), so the
+    /// CLI controls every hop: the budget, the scheme (no https → http
+    /// downgrade), and the headers (credentials are dropped).
     pub fn send(self) -> Result<RawResponse, HttpError> {
-        let mut builder = ureq::AgentBuilder::new()
-            .timeout(self.timeout)
-            .redirects(self.redirects.unwrap_or(0));
+        let max_redirects = self.redirects.unwrap_or(0);
+        let mut url = self.url.to_string();
+        let mut headers = self.headers.clone();
+        let mut method = self.method;
+        let mut body: Option<(String, Vec<u8>)> = self
+            .body
+            .as_ref()
+            .map(|(ct, bytes)| ((*ct).to_string(), bytes.clone()));
+        let mut hops = 0u32;
+
+        loop {
+            let (response, location) = self.send_once(&url, method, &headers, body.as_ref())?;
+
+            if !(300..400).contains(&response.status) {
+                return Ok(response);
+            }
+
+            let Some(location) = location else {
+                return Err(HttpError::Redirect(
+                    "the server redirected without a location header".to_string(),
+                ));
+            };
+            if hops >= max_redirects {
+                return Err(HttpError::Redirect(format!(
+                    "refusing to follow more than {max_redirects} redirects"
+                )));
+            }
+
+            url = redirect_target(&url, &location)?;
+            hops += 1;
+
+            // A redirected request never carries credentials forward.
+            strip_credentials(&mut headers);
+            if method != "GET" {
+                method = "GET";
+                body = None;
+            }
+        }
+    }
+
+    fn send_once(
+        &self,
+        url: &str,
+        method: &str,
+        headers: &[(String, String)],
+        body: Option<&(String, Vec<u8>)>,
+    ) -> Result<(RawResponse, Option<String>), HttpError> {
+        let mut builder = ureq::AgentBuilder::new().timeout(self.timeout).redirects(0);
         // v1 ignored proxy environment variables (undici does not read them);
         // v2 honours them so the CLI works behind a corporate proxy.
-        if let Some(proxy) = proxy_from_env(self.url) {
+        if let Some(proxy) = proxy_from_env(url) {
             builder = builder.proxy(proxy);
         }
         let agent = builder.build();
 
-        let mut request = agent.request(self.method, self.url);
-        for (name, value) in &self.headers {
+        let mut request = agent.request(method, url);
+        for (name, value) in headers {
             request = request.set(name, value);
         }
 
-        let result = match self.body {
+        let result = match body {
             Some((content_type, bytes)) => {
-                request.set("content-type", content_type).send_bytes(&bytes)
+                request.set("content-type", content_type).send_bytes(bytes)
             }
             None => request.call(),
         };
@@ -108,12 +158,21 @@ impl<'a> Request<'a> {
         };
 
         let status = response.status();
+        let location = response.header("location").map(str::to_string);
+        let content_type = response.header("content-type").map(str::to_string);
+
         if (300..400).contains(&status) {
-            // Reachable when redirect following is disabled or exhausted.
-            return Err(HttpError::Redirect);
+            // No body is read for a redirect; the caller decides what to do.
+            return Ok((
+                RawResponse {
+                    status,
+                    content_type,
+                    body: Vec::new(),
+                },
+                location,
+            ));
         }
 
-        let content_type = response.header("content-type").map(str::to_string);
         let mut body = Vec::new();
         let mut reader = response.into_reader().take(self.body_limit as u64);
         match reader.read_to_end(&mut body) {
@@ -122,19 +181,56 @@ impl<'a> Request<'a> {
             Err(err) => return Err(HttpError::Transport(err.to_string())),
         }
 
-        Ok(RawResponse {
-            status,
-            content_type,
-            body,
-        })
+        Ok((
+            RawResponse {
+                status,
+                content_type,
+                body,
+            },
+            None,
+        ))
     }
+}
+
+/// Resolve a `Location` header, refusing anything that would downgrade the
+/// connection or leave an https origin for plain http.
+pub fn redirect_target(current: &str, location: &str) -> Result<String, HttpError> {
+    let base = url::Url::parse(current)
+        .map_err(|_| HttpError::Redirect("the request URL was invalid".to_string()))?;
+    let target = base
+        .join(location.trim())
+        .map_err(|_| HttpError::Redirect("the redirect location was invalid".to_string()))?;
+
+    let target_host = target.host_str().unwrap_or_default();
+    let target_is_loopback = matches!(target_host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
+    let allowed = target.scheme() == "https"
+        || (target.scheme() == "http" && base.scheme() == "http" && target_is_loopback);
+
+    if !allowed {
+        return Err(HttpError::Redirect(format!(
+            "refusing to follow a redirect from {} to {}",
+            base.scheme(),
+            target.scheme()
+        )));
+    }
+    Ok(target.to_string())
+}
+
+/// Drop headers that must not travel across a redirect.
+fn strip_credentials(headers: &mut Vec<(String, String)>) {
+    headers.retain(|(name, _)| {
+        !matches!(
+            name.to_ascii_lowercase().as_str(),
+            "authorization" | "cookie" | "proxy-authorization"
+        )
+    });
 }
 
 /// Build a proxy from `HTTPS_PROXY` / `HTTP_PROXY` (and their lowercase forms).
 ///
 /// Loopback targets and hosts listed in `NO_PROXY` bypass the proxy, so a local
 /// issuer (and the test suite) keeps working on a proxied machine.
-fn proxy_from_env(url: &str) -> Option<ureq::Proxy> {
+pub fn proxy_from_env(url: &str) -> Option<ureq::Proxy> {
     let host = url::Url::parse(url)
         .ok()
         .and_then(|parsed| parsed.host_str().map(str::to_string))?;
@@ -191,7 +287,7 @@ fn classify(transport: &ureq::Transport) -> HttpError {
     if matches!(transport.kind(), ureq::ErrorKind::TooManyRedirects)
         || message.to_lowercase().contains("redirect")
     {
-        return HttpError::Redirect;
+        return HttpError::Redirect("the server redirected unexpectedly".to_string());
     }
     // Transport messages can embed the request or proxy URL; redact before it
     // reaches the terminal.

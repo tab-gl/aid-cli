@@ -9,6 +9,7 @@ use serde_json::{Map, Value};
 use crate::api::api_get_json;
 use crate::api::client::encode_segment;
 use crate::cli::args::{self, flag};
+use crate::cli::commands::non_empty;
 use crate::config::project_config::{self, CONFIG_FILE};
 use crate::config::{storage, Config};
 use crate::error::{AidError, Result};
@@ -23,7 +24,8 @@ pub fn run(argv: &[String]) -> Result<()> {
     let parsed = args::parse(argv, &OPTIONS).map_err(|_| AidError::new(USAGE))?;
 
     let positionals = parsed.positionals();
-    let app_id = positionals.first().cloned();
+    // v1 treats an empty argument as "no app given" (`appId && dryRun`).
+    let app_id = non_empty(positionals.first().map(String::as_str)).map(str::to_string);
     let dry_run = parsed.flag("dry-run");
     if positionals.len() > 1 || (app_id.is_some() && dry_run) {
         return Err(AidError::new(USAGE));

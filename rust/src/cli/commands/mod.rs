@@ -28,6 +28,14 @@ pub fn json_only(args: &[String], usage: &str) -> Result<bool> {
     Err(AidError::new(usage))
 }
 
+/// Treat an empty argument as absent, the way v1's truthiness checks do.
+///
+/// v1 used `if (!id)` / `if (!values.name)`, so `aid apps get ""` was a usage
+/// error rather than a request for an empty id.
+pub fn non_empty(value: Option<&str>) -> Option<&str> {
+    value.filter(|text| !text.is_empty())
+}
+
 /// Convert a JSON value to the text v1 printed with `String(value)`.
 pub fn value_text(value: Option<&Value>) -> Option<String> {
     match value {

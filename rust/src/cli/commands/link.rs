@@ -6,6 +6,7 @@ use crate::api::api_get_json;
 use crate::api::client::encode_segment;
 use crate::cli::args::{self, flag, value};
 use crate::cli::commands::list_options::string_list;
+use crate::cli::commands::non_empty;
 use crate::config::project_config::{self, CONFIG_FILE};
 use crate::config::Config;
 use crate::error::{AidError, Result};
@@ -24,7 +25,8 @@ pub fn run(argv: &[String]) -> Result<()> {
     if positionals.len() > 1 {
         return Err(AidError::new(USAGE));
     }
-    let Some(app_id) = positionals.first().cloned() else {
+    let Some(app_id) = non_empty(positionals.first().map(String::as_str)).map(str::to_string)
+    else {
         return Err(AidError::new(USAGE));
     };
 
@@ -71,7 +73,7 @@ pub fn run(argv: &[String]) -> Result<()> {
     document.insert("issuer".to_string(), Value::String(config.issuer.clone()));
     document.insert("app_id".to_string(), Value::String(returned_id.clone()));
 
-    let client_id = match parsed.value("client") {
+    let client_id = match non_empty(parsed.value("client")) {
         Some(client) => Some(client.to_string()),
         None if same_app => document
             .get("client_id")

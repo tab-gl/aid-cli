@@ -296,7 +296,7 @@ fn redirects_are_refused_by_default_and_bounded_when_opted_in() {
     )
     .send();
     assert!(
-        matches!(refused, Err(HttpError::Redirect)),
+        matches!(refused, Err(HttpError::Redirect(_))),
         "credentialed requests must never follow redirects"
     );
 

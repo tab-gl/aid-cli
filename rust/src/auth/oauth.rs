@@ -132,7 +132,7 @@ pub fn exchange_code(config: &Config, code: &str, verifier: &str) -> Result<Toke
             "Token exchange timed out after {}s.",
             config.request_timeout_label()
         )),
-        HttpError::Redirect | HttpError::Transport(_) => {
+        HttpError::Redirect(_) | HttpError::Transport(_) => {
             AidError::new("Token endpoint request failed or was redirected unexpectedly.")
         }
     })?;
@@ -181,7 +181,7 @@ pub fn refresh_tokens(config: &Config, refresh_token: &str) -> Result<TokenRespo
             "Token refresh timed out after {}s.",
             config.request_timeout_label()
         )),
-        HttpError::Redirect | HttpError::Transport(_) => {
+        HttpError::Redirect(_) | HttpError::Transport(_) => {
             AidError::new("Token refresh request failed or was redirected unexpectedly.")
         }
     })?;
