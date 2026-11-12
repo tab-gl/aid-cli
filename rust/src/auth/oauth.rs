@@ -130,7 +130,7 @@ pub fn exchange_code(config: &Config, code: &str, verifier: &str) -> Result<Toke
     .map_err(|err| match err {
         HttpError::Timeout => AidError::new(format!(
             "Token exchange timed out after {}s.",
-            config.request_timeout_secs()
+            config.request_timeout_label()
         )),
         HttpError::Redirect | HttpError::Transport(_) => {
             AidError::new("Token endpoint request failed or was redirected unexpectedly.")
@@ -179,7 +179,7 @@ pub fn refresh_tokens(config: &Config, refresh_token: &str) -> Result<TokenRespo
     .map_err(|err| match err {
         HttpError::Timeout => AidError::new(format!(
             "Token refresh timed out after {}s.",
-            config.request_timeout_secs()
+            config.request_timeout_label()
         )),
         HttpError::Redirect | HttpError::Transport(_) => {
             AidError::new("Token refresh request failed or was redirected unexpectedly.")
@@ -213,7 +213,7 @@ pub fn refresh_tokens(config: &Config, refresh_token: &str) -> Result<TokenRespo
 
 /// Merge a token response over the previous tokens, preserving fields the
 /// server did not resend (matching v1's refresh behaviour).
-pub fn merge_tokens(previous: Option<&Tokens>, response: &TokenResponse) -> Tokens {
+pub fn merge_tokens(previous: Option<&Tokens>, response: &TokenResponse, issuer: &str) -> Tokens {
     let mut tokens = Tokens::new(response.access_token.clone());
     tokens.refresh_token = response
         .refresh_token
@@ -233,6 +233,7 @@ pub fn merge_tokens(previous: Option<&Tokens>, response: &TokenResponse) -> Toke
         .clone()
         .or_else(|| previous.and_then(|tokens| tokens.scope.clone()));
     tokens.expires_at = Some(response.expires_at());
+    tokens.issuer = Some(issuer.trim_end_matches('/').to_string());
     if let Some(extra) = previous.map(|tokens| tokens.extra.clone()) {
         tokens.extra = extra;
     }
@@ -292,7 +293,7 @@ impl CallbackServer {
             if Instant::now() >= deadline {
                 return Err(AidError::new(format!(
                     "Timed out after {}s waiting for the browser.",
-                    config.callback_timeout_secs()
+                    config.callback_timeout_label()
                 )));
             }
 
@@ -557,7 +558,7 @@ mod tests {
             scope: None,
             expires_in: Some(3600.0),
         };
-        let merged = merge_tokens(Some(&previous), &response);
+        let merged = merge_tokens(Some(&previous), &response, "https://identity.ace-base.cc");
         assert_eq!(merged.access_token, "new");
         assert_eq!(merged.refresh_token.as_deref(), Some("refresh-1"));
         assert_eq!(merged.scope.as_deref(), Some("openid"));

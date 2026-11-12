@@ -21,6 +21,7 @@ const NO_REFRESH_TOKEN: &str =
 /// Return a usable access token, refreshing it when it is close to expiry.
 pub fn get_valid_access_token(config: &Config) -> Result<String> {
     let tokens = token::load()?.ok_or_else(|| AidError::new(NOT_SIGNED_IN))?;
+    ensure_issuer(&tokens, config)?;
     if !token::is_expiring_soon(&tokens, config.refresh_leeway_ms) {
         return Ok(tokens.access_token);
     }
@@ -32,6 +33,7 @@ pub fn get_valid_access_token(config: &Config) -> Result<String> {
     let refreshed = token::with_token_lock(|| {
         // Another process may have refreshed while this one waited.
         let latest = token::load()?.ok_or_else(|| AidError::new(NOT_SIGNED_IN))?;
+        ensure_issuer(&latest, config)?;
         if !token::is_expiring_soon(&latest, config.refresh_leeway_ms) {
             return Ok(latest);
         }
@@ -42,7 +44,7 @@ pub fn get_valid_access_token(config: &Config) -> Result<String> {
 
         match oauth::refresh_tokens(config, &refresh_token) {
             Ok(response) => {
-                let merged = merge_tokens(Some(&latest), &response);
+                let merged = merge_tokens(Some(&latest), &response, &config.issuer);
                 token::save_unlocked(merged.clone())?;
                 Ok(merged)
             }
@@ -59,6 +61,18 @@ pub fn get_valid_access_token(config: &Config) -> Result<String> {
     })?;
 
     Ok(refreshed.access_token)
+}
+
+/// Refuse a stored session that belongs to another issuer.
+pub fn ensure_issuer(tokens: &token::Tokens, config: &Config) -> Result<()> {
+    if tokens.belongs_to(&config.issuer) {
+        return Ok(());
+    }
+    let stored = tokens.issuer.clone().unwrap_or_default();
+    Err(AidError::new(format!(
+        "The stored session belongs to {stored}. Run `aid login` to sign in to {}.",
+        config.issuer
+    )))
 }
 
 #[cfg(test)]

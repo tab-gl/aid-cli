@@ -37,6 +37,13 @@ pub struct Tokens {
     pub scope: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<i64>,
+    /// Issuer this session was created for.
+    ///
+    /// v1 ignores (and preserves) this key; v2 uses it to refuse using a session
+    /// that belongs to a different `AIDC_ISSUER` instead of silently sending the
+    /// wrong token to the wrong service.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issuer: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -46,6 +53,17 @@ impl Tokens {
         Self {
             access_token: access_token.into(),
             ..Default::default()
+        }
+    }
+
+    /// True when this session may be used against `issuer`.
+    ///
+    /// Sessions written by v1 carry no issuer, so they are accepted (that keeps
+    /// the shared store compatible); sessions written by v2 are pinned.
+    pub fn belongs_to(&self, issuer: &str) -> bool {
+        match &self.issuer {
+            None => true,
+            Some(stored) => stored.trim_end_matches('/') == issuer.trim_end_matches('/'),
         }
     }
 
@@ -393,6 +411,24 @@ mod tests {
         let tokens = Tokens::from_json(&value).unwrap();
         assert_eq!(tokens.access_token, "token");
         assert_eq!(tokens.refresh_token.as_deref(), Some("refresh"));
+    }
+
+    #[test]
+    fn sessions_are_pinned_to_their_issuer() {
+        let mut tokens = Tokens::new("a");
+        assert!(
+            tokens.belongs_to("https://identity.ace-base.cc"),
+            "v1 sessions have no issuer"
+        );
+        tokens.issuer = Some("https://other.example".to_string());
+        assert!(!tokens.belongs_to("https://identity.ace-base.cc"));
+        assert!(tokens.belongs_to("https://other.example/"));
+    }
+
+    #[test]
+    fn issuer_field_must_be_a_string() {
+        let value = serde_json::json!({"access_token": "a", "issuer": 5});
+        assert!(Tokens::from_json(&value).is_err());
     }
 
     #[test]

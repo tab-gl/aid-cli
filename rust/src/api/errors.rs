@@ -79,13 +79,19 @@ pub fn sanitize_detail(value: &str) -> String {
     let without_bearer = redact_bearer(&without_urls);
     let without_assignments = redact_assignments(&without_bearer);
 
+    // Control characters from an untrusted issuer could drive the terminal
+    // (cursor moves, title changes, hyperlinks). Whitespace controls become a
+    // space; every other C0 control, DEL and C1 control is dropped.
     let collapsed: String = without_assignments
         .chars()
-        .map(|ch| {
+        .filter_map(|ch| {
+            let code = ch as u32;
             if ch == '\r' || ch == '\n' || ch == '\t' {
-                ' '
+                Some(' ')
+            } else if code < 0x20 || code == 0x7f || (0x80..=0x9f).contains(&code) {
+                None
             } else {
-                ch
+                Some(ch)
             }
         })
         .collect();
@@ -292,6 +298,17 @@ mod tests {
     fn urls_are_replaced() {
         let detail = sanitize_detail("see https://internal.example/token?x=1 for details");
         assert_eq!(detail, "see [URL] for details");
+    }
+
+    #[test]
+    fn terminal_control_characters_are_removed() {
+        // ESC sequences, BEL and C1 controls must never reach the terminal.
+        let detail = sanitize_detail("bad \x1b[31mred\x1b[0m \x07bell \u{9b}31m csi");
+        assert!(!detail.contains('\x1b'), "{detail:?}");
+        assert!(!detail.contains('\x07'), "{detail:?}");
+        assert!(!detail.contains('\u{9b}'), "{detail:?}");
+        assert!(detail.contains("bad"), "{detail:?}");
+        assert!(detail.contains("red"), "{detail:?}");
     }
 
     #[test]
