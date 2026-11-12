@@ -62,8 +62,22 @@ Callback timeout defaults to 5 minutes (`AIDC_CALLBACK_TIMEOUT_MS`).
 - Writes go to a unique temp file created with `create_new`, are `fsync`ed, then
   renamed into place, so a crash never truncates the session.
 - Unknown keys written by another client are preserved.
+- v2 records `"issuer"` in the file and refuses to use a session created for a
+  different `AIDC_ISSUER` (v1 sessions have no such key and are accepted).
 - Symlinks, non-regular files, invalid JSON and wrong field types are rejected
   with `Stored Ace ID session is invalid or unsafe. Run \`aid login\` again.`
+
+## Switching issuers
+
+`aid login` always replaces the stored session. If `AIDC_ISSUER` points somewhere
+else than the stored session's issuer, commands fail with
+
+```text
+✗ The stored session belongs to https://old.example. Run `aid login` to sign in to https://new.example.
+```
+
+rather than sending the old token to the new service. Nothing is deleted, so
+switching `AIDC_ISSUER` back restores the previous session.
 
 ## Refresh
 

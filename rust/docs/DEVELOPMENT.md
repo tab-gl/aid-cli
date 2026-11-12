@@ -36,6 +36,12 @@ rust/
   docs/              # command, auth, config, migration, security, troubleshooting
   PARITY.md          # v1 → v2 matrix with the covering test
   AUDIT.md           # v1 audit findings
+  REVIEW.md          # round-2 hardening: differential, interop and live results
+audit/               # verification scripts (not shipped, not part of the build)
+  diff_harness.py    # v1 vs v2 differential run over 81 cases
+  interop.py         # v1 ⇄ v2 session interop + simultaneous refresh race
+  live_sdk.py        # real GitHub artifact + real npm install
+  fresh_install.sh   # clone → build → install → run → uninstall
 ```
 
 Design rules:
@@ -88,6 +94,23 @@ Guidelines:
 4. Add the help entry in `cli::print_help` and `docs/COMMANDS.md`.
 5. Add a unit test for parsing and an integration test for the flow.
 6. Update `PARITY.md` if it maps to v1 behaviour.
+
+## Verification scripts
+
+These complement `cargo test` by testing the shipped binary against the shipped
+v1 CLI and the real services. They need `node` (for v1), a release build
+(`cargo build --release`) and network access for the live checks:
+
+```sh
+cd rust && cargo build --release && cd ..
+python3 audit/diff_harness.py      # 81 cases, expect "identical: 81"
+python3 audit/interop.py           # 12 checks
+python3 audit/live_sdk.py          # Android artifact + npm install
+bash   audit/fresh_install.sh      # install/uninstall from a clean clone
+```
+
+They are intentionally outside the build: `cargo test` must stay hermetic, and the
+live checks talk to GitHub and the npm registry.
 
 ## Commit style
 

@@ -25,12 +25,16 @@ rests on the release publisher).
 | Single-use callback | the listener returns as soon as a valid code arrives and is then dropped |
 | Loopback only | listener bound to `127.0.0.1`, never `0.0.0.0` |
 | No secrets in logs | tokens are never printed; error details pass through `sanitize_detail` (Bearer values, `access_token`/`refresh_token`/`id_token`/`client_secret`/`authorization`/`api_key`/`password` assignments, and URLs are redacted) |
+| Terminal escape protection | `sanitize_detail` drops C0 controls (other than `\r\n\t`, which become spaces), DEL and C1 controls, so a hostile issuer cannot emit cursor moves, title changes or hyperlinks |
 | Restrictive permissions | token and `.aid.json` files `0600`, config directory `0700` (POSIX) |
 | Atomic writes | temp file + `fsync` + `rename`, `create_new` so an existing temp file is never reused |
 | Symlink resistance | token files are read with `symlink_metadata`; symlinks and non-regular files are refused |
 | Refresh race protection | in-process mutex + cross-process lock file + re-read after acquiring the lock |
 | URL validation | issuer must be HTTPS (except loopback), with no credentials, query or fragment; API paths are resolved against the issuer origin and containment-checked after normalisation |
-| Redirect rejection | `redirects(0)` on every request; a 3xx is an error, never followed |
+| Redirect rejection | every credentialed request (API, token endpoint) uses `redirects(0)`; a 3xx is an error, never followed |
+| Bounded redirects for downloads | the unauthenticated SDK metadata/artifact requests may follow at most 5 redirects (GitHub renames repositories and serves assets via a CDN); integrity is enforced by the pinned SHA-256, not by the transport |
+| Proxy support | `HTTPS_PROXY`/`HTTP_PROXY` are honoured, `NO_PROXY` respected, and loopback targets are never proxied |
+| Issuer pinning | `tokens.json` records its issuer; a session from another issuer is refused instead of being sent to the wrong service |
 | Timeouts | one deadline per request covering connect, headers and body reads |
 | Bounded bodies | API responses capped at 8 MiB, error details at 4 KiB / 240 chars |
 | Artifact verification | Android SDK: release `digest` must equal `sha256:<pin>` **and** the downloaded bytes must hash to the same pin before writing |
@@ -53,6 +57,11 @@ Include the version (`aid --version`), the platform and a reproduction.
 - The lock file is advisory. A crash at exactly the wrong moment can leave a stale
   lock; it is recovered automatically once the owning pid is gone or after 60 s,
   and the error message tells you which file to delete if recovery ever fails.
-- Terminal escape injection is limited to what an API error can contain: control
-  characters other than `\r\n\t` are preserved by the redaction pass. Treat error
-  text from an untrusted issuer as untrusted.
+- TLS trust uses the bundled `webpki-roots` set. A TLS-inspecting proxy (corporate
+  MITM, some CI sandboxes) fails with `tls connection init failed`; there is no
+  `AIDC_CA_BUNDLE` yet. Workaround for the Android SDK: download
+  `library-release.aar` manually and place it in `libs/` — `setup`'s inspection
+  verifies the pinned hash.
+- Terminal escape injection from API error text is now stripped (see above), but
+  *other* untrusted text (app names, client names, descriptions) is printed
+  verbatim, as in v1. Treat a hostile issuer's data as hostile.

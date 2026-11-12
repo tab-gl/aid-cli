@@ -18,6 +18,9 @@ Identical names, defaults and validation as v1.
 | `TERM=dumb` | — | Disables colour. |
 | `XDG_CONFIG_HOME` | `~/.config` | Base for `aidc/tokens.json` (POSIX). |
 | `APPDATA` | `%USERPROFILE%` | Base for `aidc\tokens.json` (Windows). |
+| `HTTPS_PROXY` / `HTTP_PROXY` | unset | **v2 only.** Proxy for API, token and SDK requests. `https_proxy`/`http_proxy` are also read. Loopback targets are never proxied. |
+| `NO_PROXY` | unset | **v2 only.** Comma-separated hosts (or `*`) that bypass the proxy. |
+| `AIDC_SDK_RELEASE_BASE` | `https://api.github.com/repos/aceyash-dev/ace-id-sdk` | **v2 only.** Base URL for the Android SDK release metadata (mirrors / air-gapped installs). Must be HTTPS or loopback. The pinned SHA-256 is still enforced. |
 
 Validation errors are reported before any network activity, e.g.:
 
@@ -31,6 +34,11 @@ Validation errors are reported before any network activity, e.g.:
 
 See [`AUTHENTICATION.md`](AUTHENTICATION.md#stored-session). Location, mode and
 JSON shape are shared with v1, so both CLIs can use the same session.
+
+v2 adds one key, `"issuer"`, recording which `AIDC_ISSUER` the session belongs to.
+v1 ignores and preserves it. A session that records a different issuer is refused
+(`The stored session belongs to <issuer>. Run `aid login` …`) instead of being sent
+to the wrong service; sessions written by v1 have no `issuer` key and are accepted.
 
 ## Project configuration (`.aid.json`)
 

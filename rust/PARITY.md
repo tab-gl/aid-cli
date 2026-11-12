@@ -11,6 +11,29 @@ Status legend:
 - **Gap** — implemented but not covered by an automated test in this environment;
   the reason is stated.
 
+## Differential verification against v1
+
+`audit/diff_harness.py` runs the real v1 CLI and the real v2 binary against one
+mock API with identical inputs and compares stdout, stderr, exit code, the
+resulting `tokens.json` / `.aid.json` and the HTTP request trace.
+
+| Run | Cases | Identical |
+| --- | --- | --- |
+| First run (before the fixes below) | 81 | 74 |
+| Final run | 81 | **81** (2 with a documented, intentional allowance) |
+
+Divergences found and fixed: JSON/`.aid.json`/request-body key order, `help` blank
+lines, timeout message formatting, and the read order of `sync` / `clients list`.
+Details and evidence: [`REVIEW.md`](REVIEW.md).
+
+Two allowances are recorded rather than "fixed", because v1 is either racy or
+vague there:
+
+- `clients list` / `sync` issue two reads in one `Promise.all`, so v1's request
+  order and error precedence are non-deterministic; v2 pins v1's declaration order.
+- On a 3xx, v1 falls through to `Network request failed…` (its `/redirect/i` branch
+  is unreachable); v2 names the cause. Exit code and credential handling match.
+
 ## Command surface
 
 | Feature | v1 source | v2 implementation | Status | Test |
@@ -71,7 +94,12 @@ Status legend:
 | Secret/URL redaction in error details | `sanitizeDetail` | `api::errors::sanitize_detail` | Ported, Tested | `api::errors::tests::secrets_are_redacted`, `security::bearer_tokens_never_appear_in_error_output` |
 | Bounded error bodies (4 KiB) and 240-char details | `readBoundedBody` | `api::errors` | Ported, Tested | `api::errors::tests::oversize_bodies_are_bounded` |
 | Invalid JSON responses reported, not silently accepted | `apiJson` | `api::client::api_json` | Ported | covered indirectly by payload-shape tests |
-| Parallel `/apps` + `/clients` read in `sync` and `clients list` | `Promise.all` | sequential reads | **Deliberate difference** | Functionally identical; v2 issues two sequential requests instead of two concurrent ones (documented in `AUDIT.md`) |
+| Parallel `/apps` + `/clients` read in `sync` and `clients list` | `Promise.all` | sequential reads in v1's declaration order | **Deliberate difference** | Byte-identical output (`diff_harness`); v1's own order is racy |
+| JSON output and `.aid.json` key order | insertion order (`JSON.stringify`) | insertion order (`serde_json` `preserve_order`) | Ported, Tested | `diff_harness` cases `apps-list-json`, `sync-apply`, `setup-vanilla` |
+| Timeout message formatting (`0.3s`, `15s`) | `${ms / 1000}s` | `util::js_seconds` | Ported, Tested | `util::tests::seconds_match_javascript_number_formatting` |
+| Help screen spacing | two blank lines between blocks | same | Ported, Tested | `diff_harness` cases `help`, `help-flag`, `help-word`, `no-args` |
+| Proxy environment variables | ignored | `HTTPS_PROXY`/`HTTP_PROXY`/`NO_PROXY` honoured | **Addition** | `http::tests::loopback_targets_bypass_the_proxy` |
+| Session pinned to its issuer | no issuer recorded | `issuer` key + refusal | **Addition** | `security::sessions_are_pinned_to_their_issuer`, `interop.py` |
 
 ## Applications and OAuth clients
 
@@ -108,8 +136,8 @@ Status legend:
 | `setup --recover` (deletes leftover resources, `--force` off-TTY, keeps live resources) | `recoverSetup` | `recover_setup` | Ported, Tested | `setup_flow::setup_recover_*` (4 tests) |
 | Rollback when client creation or config write fails | `cleanupRemoteResources` | `cleanup_remote_resources`, `finish_failed_setup` | Ported, Tested | `setup_flow::setup_cleans_up_the_app_when_client_creation_fails` |
 | SDK install for build-mode projects via the detected package manager | `installSdk` | `sdk::install::install_js_sdk` | Ported, Tested (skip path) | `setup_flow::setup_skips_an_sdk_that_is_already_declared`, `sdk::install::tests::package_install_commands_match_v1` |
-| Actual `npm/pnpm/yarn/bun add` execution | `installSdk` | `install_js_sdk` | Ported | **Gap:** running a real package install needs a registry and mutates the fixture; not automated here |
-| Android SDK download from pinned GitHub release, digest + SHA-256 verification, `libs/` write | `installAndroidSdk` | `sdk::install::install_android_sdk` | Ported, Tested (hash only) | `sdk::verify::tests::*`; **Gap:** the download path needs the live GitHub API, so only the verification primitives are automated |
+| Actual `npm/pnpm/yarn/bun add` execution | `installSdk` | `install_js_sdk` | Ported, Tested (live) | `audit/live_sdk.py`: real `npm install ace-id-sdk` → 0.2.3 installed for v1 and v2 |
+| Android SDK download from pinned GitHub release, digest + SHA-256 verification, `libs/` write | `installAndroidSdk` | `sdk::install::install_android_sdk` | Ported, Tested (live bytes) | `sdk::verify::tests::*` + `audit/live_sdk.py` (real 108,945-byte artifact, pinned hash, 302 hop, `sdk_path` written) |
 | Pinned Android artifact digest `8fde79fd…` shared with v1 | `setup.js` | `sdk::verify::ANDROID_SDK_SHA256` | Ported, Tested | `sdk::verify::tests::pinned_digest_is_a_sha256_hex_string` |
 | Android artifact drift check in `setup` inspection | `inspectExistingSetup` | `inspect_existing_setup` | Ported | code review (needs a fixture artifact) |
 | `link <app_id> [--client] [--force]` incl. `already exists` guard and foreign-client rejection | `commands/link.js` | `commands::link` | Ported, Tested | `api_commands::link_writes_project_configuration`, `link_requires_force_to_replace_and_rejects_foreign_clients` |
@@ -137,9 +165,11 @@ Status legend:
 
 1. Interactive wizard and spinner animation are TTY-only and therefore not
    automated.
-2. Real package-manager installs (`npm add …`) and the live GitHub release
-   download are not exercised by automated tests; their command construction and
-   integrity primitives are unit-tested.
-3. Windows and macOS code paths are compiled by CI only.
-4. `sync` and `clients list` issue their two reads sequentially rather than
-   concurrently (behaviour-identical, one extra round trip).
+2. Windows/macOS: CI builds **and executes** each binary (`--version`, `--help`,
+   `logout`), but OAuth, permissions and browser launch are not exercised there.
+   Android/Termux is not verified at all.
+3. `sync` and `clients list` issue their two reads sequentially rather than
+   concurrently (byte-identical output, one extra round trip on the happy path,
+   one request fewer on failure).
+4. TLS trust is the bundled root store: a TLS-inspecting proxy cannot be verified
+   (documented in `docs/SECURITY.md`).

@@ -61,7 +61,18 @@ the project configuration. Concurrent use is safe (the refresh lock is shared).
 4. **Browser detection does not spawn a shell.** v1 ran
    `sh -c "command -v xdg-open"`; v2 scans `PATH` directly.
 5. **`sync` and `clients list` read `/apps` and `/clients` sequentially** instead
-   of concurrently. Same output; one extra round trip.
+   of concurrently, in v1's declaration order. Same output; v1's own order and
+   error precedence are racy because it uses `Promise.all`.
+6. **Proxy environment variables are honoured** (`HTTPS_PROXY`, `HTTP_PROXY`,
+   `NO_PROXY`). v1 ignores them.
+7. **The stored session records its issuer.** If `AIDC_ISSUER` changes, v2 refuses
+   to use the old session instead of sending the token to the new host. `aid login`
+   replaces it; v1 ignores the extra key.
+8. **Redirects are refused with a specific message**
+   (`API request was redirected unexpectedly; refusing to forward credentials.`)
+   where v1 printed its generic `Network request failed…`.
+9. **Timeout messages keep v1's number formatting** (`0.3s`, not `1s`) and JSON
+   output keeps v1's key order, so scripts that diff output see no change.
 
 None of these change the command surface or any file format.
 

@@ -38,6 +38,25 @@ First release of the Rust implementation. Feature parity with v1 `0.1.4`.
 - Rust CI workflow (`.github/workflows/rust-v2.yml`) with fmt, clippy, tests,
   release build, cross-target builds and checksummed GitHub Releases for `v2*` tags.
 
+### Hardening (pre-release, from the round-2 review)
+
+- `--json` output and `.aid.json` keep v1's key order (insertion order), so v2 no
+  longer reorders the user's project file.
+- Request bodies are serialised in v1's key order.
+- `help` spacing, timeout message formatting (`0.3s`, not `1s`) and the read order
+  of `sync` / `clients list` now match v1 exactly.
+- Stored sessions record their issuer and are refused for a different
+  `AIDC_ISSUER`; v1-shaped sessions keep working.
+- Error details from an untrusted issuer can no longer contain terminal control
+  characters.
+- SDK downloads follow up to 5 redirects (needed after the SDK repository was
+  renamed and because assets are served from a CDN); credentialed requests still
+  refuse redirects.
+- `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` are honoured; loopback is never proxied.
+- `AIDC_SDK_RELEASE_BASE` allows installing the Android SDK from a mirror.
+- Verified against the real v1 CLI (81 differential cases), a simultaneous v1/v2
+  refresh race, the live SDK release and a real `npm install`; see `REVIEW.md`.
+
 ### Changed relative to v1
 
 - `--help` and `--version` no longer fail when `AIDC_ISSUER` is invalid

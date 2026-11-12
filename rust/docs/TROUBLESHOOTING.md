@@ -70,6 +70,26 @@ The issuer did not return a refresh token (the `offline_access` scope is usually
 required). Log in again; if it recurs, confirm `AIDC_SCOPES` includes
 `offline_access`.
 
+## `The stored session belongs to <issuer>.`
+
+`AIDC_ISSUER` now points at a different issuer than the stored session. Run
+`aid login` to sign in to the new issuer (the old session is replaced), or set
+`AIDC_ISSUER` back to the issuer the session belongs to.
+
+## `tls connection init failed` / `SDK download request failed`
+
+TLS trust uses the bundled Mozilla root store. Behind a TLS-inspecting proxy the
+handshake cannot be verified. Options: use a network without interception, or for
+the Android SDK download the artifact manually and place it at
+`libs/library-release.aar` (setup verifies its SHA-256). API and token traffic is
+unaffected if the issuer's certificate chains to a public root.
+
+## Behind a proxy
+
+v2 reads `HTTPS_PROXY`/`HTTP_PROXY` and `NO_PROXY`; loopback is never proxied.
+If your proxy requires credentials, put them in the URL (`http://user:pass@host:port`)
+— they are never printed.
+
 ## `Timed out waiting for the Ace ID session lock…`
 
 Another `aid` process holds the lock and did not finish within 30 s. If no other
