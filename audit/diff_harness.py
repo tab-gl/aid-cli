@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -267,6 +268,9 @@ class Case:
     # A deliberate, documented improvement: v2's stderr may contain this text
     # where v1 emitted a generic message. Everything else must still match.
     intended_stderr: str = ""
+    # Raw token document to write instead of the default session, plus its mode.
+    tokens_doc: str = ""
+    tokens_mode: int = 0o600
     # v1 issues these reads concurrently, so their arrival order is racy.
     unordered_requests: bool = False
     # Transport-level noise (aborted requests) is not CLI behaviour.
@@ -293,19 +297,25 @@ def normalise(text: str, base: str, port: str) -> str:
     return text
 
 
-def seed_tokens(config_home: str) -> None:
+def seed_tokens(config_home: str, document: str = "", mode: int = 0o600) -> None:
     directory = os.path.join(config_home, "aidc")
     os.makedirs(directory, exist_ok=True)
     now_ms = int(time.time() * 1000)
-    document = {
-        "access_token": "at-seeded",
-        "refresh_token": "rt-seeded",
-        "token_type": "Bearer",
-        "scope": "openid profile email",
-        "expires_at": now_ms + 3_600_000,
-    }
-    with open(os.path.join(directory, "tokens.json"), "w", encoding="utf-8") as handle:
-        json.dump(document, handle, indent=2)
+    if not document:
+        document = json.dumps(
+            {
+                "access_token": "at-seeded",
+                "refresh_token": "rt-seeded",
+                "token_type": "Bearer",
+                "scope": "openid profile email",
+                "expires_at": now_ms + 3_600_000,
+            },
+            indent=2,
+        )
+    path = os.path.join(directory, "tokens.json")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(document)
+    os.chmod(path, mode)
 
 
 def run_one(
@@ -379,7 +389,7 @@ def compare(case: Case, scenarios: dict[str, Scenario], verbose: bool) -> Result
         os.makedirs(config_home)
         prepare_project(case, base, workdir)
         if case.tokens:
-            seed_tokens(config_home)
+            seed_tokens(config_home, case.tokens_doc, case.tokens_mode)
         scenario.reset()
         try:
             result = run_one(kind, case, base, port, workdir, config_home)
@@ -388,6 +398,12 @@ def compare(case: Case, scenarios: dict[str, Scenario], verbose: bool) -> Result
                 for r in scenario.requests
             ]
             result["tokens"] = read_files(config_home, ("aidc/tokens.json",))
+            token_path = os.path.join(config_home, "aidc", "tokens.json")
+            result["tokens_mode"] = (
+                oct(stat.S_IMODE(os.stat(token_path).st_mode))
+                if os.path.exists(token_path)
+                else None
+            )
             result["files"] = read_files(workdir, case.compare_files)
             outputs[kind] = result
             files[kind] = result["files"]
@@ -420,6 +436,16 @@ def compare(case: Case, scenarios: dict[str, Scenario], verbose: bool) -> Result
         right = files["v2"].get(name, "<absent>")
         if normalise(left, base, port) != normalise(right, base, port):
             problems.append(f"{name} differs:\n--- v1 ---\n{left}\n--- v2 ---\n{right}")
+
+    for kind in ("v1", "v2"):
+        path = os.path.join(
+            os.path.dirname(outputs[kind]["files"].get("__unused__", "")) if False else "",
+            "",
+        )
+    left_mode = outputs["v1"].get("tokens_mode")
+    right_mode = outputs["v2"].get("tokens_mode")
+    if left_mode != right_mode:
+        problems.append(f"token file mode differs: v1={left_mode} v2={right_mode}")
 
     tokens_left = v1["tokens"].get("aidc/tokens.json", "<absent>")
     tokens_right = v2["tokens"].get("aidc/tokens.json", "<absent>")
@@ -524,6 +550,10 @@ def build_cases() -> list[Case]:
         Case("test-auth", ["test-auth"]),
         Case("test-auth-json", ["test-auth", "--json"]),
         Case("whoami-anon", ["whoami"], tokens=False),
+        Case("tokens-corrupt", ["whoami"], tokens_doc="{ not json"),
+        Case("tokens-wrong-type", ["whoami"], tokens_doc='{"access_token":5}'),
+        Case("tokens-empty", ["whoami"], tokens_doc="{}"),
+        Case("tokens-world-readable", ["whoami"], tokens_mode=0o644),
         Case("logout", ["logout"]),
         # link / sync
         Case("link", ["link", "a1"]),
@@ -563,6 +593,24 @@ def build_cases() -> list[Case]:
             compare_files=(".aid.json",),
         ),
         Case("setup-badflag", ["setup", "--nope"]),
+        # malformed and edge-case inputs
+        Case("bad-aid-json", ["sync"], config="{ not json"),
+        Case("aid-json-array", ["sync"], config="[]"),
+        Case("aid-json-no-app", ["sync"], config='{"issuer":"__ISSUER__"}'),
+        Case("aid-json-bad-client", ["sync"], config='{"issuer":"__ISSUER__","app_id":"a1","client_id":5}'),
+        Case("bad-package-json", ["setup"], files={"package.json": "{ nope"}),
+        Case("package-deps-array", ["setup"], files={"package.json": '{"dependencies":[]}'}),
+        Case("create-empty-name", ["apps", "create", "-n", ""]),
+        Case("create-missing-value", ["apps", "create", "--name"]),
+        Case("create-unicode", ["apps", "create", "-n", "Ünïcode ✨ App"]),
+        Case("create-long-desc", ["apps", "create", "-n", "x", "-d", "d" * 300]),
+        Case("get-empty-id", ["apps", "get", ""]),
+        Case("delete-empty-id", ["apps", "delete", ""]),
+        Case("clients-get-empty-id", ["clients", "get", ""]),
+        Case("link-empty-id", ["link", ""]),
+        Case("sync-empty-app", ["sync", ""]),
+        Case("search-unicode", ["apps", "list", "--search", "ALPHA"]),
+        Case("limit-huge", ["apps", "list", "--limit", "999999999999999999999"]),
         # error scenarios
         Case("err-apps-400", ["apps", "list"], scenario="error"),
         Case("err-me-401", ["whoami"], scenario="error"),
