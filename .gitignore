@@ -16,3 +16,7 @@ node_modules/
 # Local runtime
 .cache/
 tmp/
+
+# Rust v2 build artifacts
+rust/target/
+rust/Cargo.lock.bak
