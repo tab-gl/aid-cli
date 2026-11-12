@@ -511,8 +511,9 @@ fn request_timeouts_are_reported() {
         ],
     );
     assert_eq!(output.status.code(), Some(1));
+    // v1 renders `${ms / 1000}s`, so a 300 ms deadline reads as "0.3s".
     assert!(
-        stderr_of(&output).contains("Request timed out after 1s."),
+        stderr_of(&output).contains("Request timed out after 0.3s."),
         "stderr: {:?}",
         stderr_of(&output)
     );

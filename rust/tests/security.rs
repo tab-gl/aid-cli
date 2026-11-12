@@ -228,3 +228,86 @@ fn slow_endpoints_time_out_without_hanging() {
         "the CLI must not wait for the full server delay"
     );
 }
+
+#[test]
+fn sessions_are_pinned_to_their_issuer() {
+    let env = Env::new("issuer-pin");
+    let dir = env.config_home.join("aidc");
+    std::fs::create_dir_all(&dir).unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as i64)
+        .unwrap_or(0);
+    std::fs::write(
+        dir.join("tokens.json"),
+        serde_json::json!({
+            "access_token": "at-1",
+            "token_type": "Bearer",
+            "expires_at": now + 3_600_000,
+            "issuer": "https://other.example"
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let output = env.run(&["whoami"], &[("AIDC_ISSUER", "http://127.0.0.1:9")]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = stderr_of(&output);
+    assert!(
+        stderr.contains("The stored session belongs to https://other.example."),
+        "{stderr}"
+    );
+    assert!(stderr.contains("Run `aid login` to sign in to"), "{stderr}");
+    // The session is left in place: the user may switch back.
+    assert!(env.tokens_path().exists());
+}
+
+#[test]
+fn sessions_without_an_issuer_stay_compatible_with_v1() {
+    // A v1-written token file has no issuer key and must keep working.
+    let server = MockServer::start(vec![Route::json(
+        "GET",
+        "/me",
+        200,
+        r#"{"name":"Yash Gupta","sub":"user-1"}"#,
+    )]);
+    let env = Env::new("v1-session");
+    env.seed_tokens("at-1", 3_600_000, None);
+
+    let output = env.run(&["whoami"], &[("AIDC_ISSUER", &server.base)]);
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert!(stdout_of(&output).contains("Yash Gupta"));
+}
+
+#[test]
+fn redirects_are_refused_by_default_and_bounded_when_opted_in() {
+    use ace_id_cli::http::{HttpError, Request};
+    use std::time::Duration;
+
+    let server = MockServer::start(vec![
+        Route::json("GET", "/moved", 302, "").header("location", "/target"),
+        Route::json("GET", "/target", 200, r#"{"ok":true}"#),
+    ]);
+
+    let refused = Request::new(
+        "GET",
+        &format!("{}/moved", server.base),
+        Duration::from_secs(5),
+    )
+    .send();
+    assert!(
+        matches!(refused, Err(HttpError::Redirect)),
+        "credentialed requests must never follow redirects"
+    );
+
+    let followed = Request::new(
+        "GET",
+        &format!("{}/moved", server.base),
+        Duration::from_secs(5),
+    )
+    .follow_redirects(5)
+    .send()
+    .expect("opted-in redirect should be followed");
+    assert_eq!(followed.status, 200);
+    assert!(String::from_utf8_lossy(&followed.body).contains("ok"));
+}
