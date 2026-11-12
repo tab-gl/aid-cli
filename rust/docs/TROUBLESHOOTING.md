@@ -86,9 +86,12 @@ unaffected if the issuer's certificate chains to a public root.
 
 ## Behind a proxy
 
-v2 reads `HTTPS_PROXY`/`HTTP_PROXY` and `NO_PROXY`; loopback is never proxied.
-If your proxy requires credentials, put them in the URL (`http://user:pass@host:port`)
-— they are never printed.
+v2 reads `HTTPS_PROXY`/`HTTP_PROXY` and `NO_PROXY`; loopback is never proxied, and
+`NO_PROXY` accepts exact hosts, `.suffix` and bare-domain suffixes, `host:port` and `*`.
+
+**Proxy authentication is not supported.** A proxy that requires credentials answers
+407 and the request fails (`Request failed (407): Proxy Authentication Required`).
+Use an unauthenticated proxy, or add the host to `NO_PROXY`.
 
 ## `Timed out waiting for the Ace ID session lock…`
 

@@ -12,7 +12,81 @@ the shipped binary):
 | `audit/diff_harness.py` | Runs the **real v1 (Node) CLI** and the **real v2 (Rust) binary** against one mock API with identical inputs and compares stdout, stderr, exit code, resulting `.aid.json`/`tokens.json` and the HTTP request trace. 81 cases. |
 | `audit/interop.py` | v1 ⇄ v2 session interoperability, including a **simultaneous refresh race** between the two CLIs. 12 checks. |
 | `audit/live_sdk.py` | Real GitHub SDK artifact download + real `npm install` of the JS SDK, for both CLIs. |
+| `audit/signals.py` | SIGINT during login and during a slow API call, SIGKILL during a refresh, stale-lock recovery, no partial writes. |
 | `audit/fresh_install.sh` | Clone → build → install onto `PATH` in an empty `HOME` → run → uninstall. |
+
+## Round 3 — concurrency, redirects and storage edge cases
+
+The second review asked for four specific areas. All are now covered by code and
+tests; two produced real fixes.
+
+### Redirect handling — rebuilt, not delegated
+
+The previous version asked `ureq` to follow redirects. That gave no control over
+the scheme or the headers on each hop, so v2 now follows redirects **itself**
+(`http::Request::send`), with the agent always set to `redirects(0)`:
+
+| Property | Behaviour | Test |
+| --- | --- | --- |
+| Budget | at most the requested number of hops (5 for SDK downloads, 0 everywhere else); exceeding it is an error naming the limit | `resilience::redirect_budget_is_enforced` |
+| Downgrade prevention | `https → http` is refused; plain `http` is only allowed between loopback addresses (test/mirror use) | `http::tests::redirects_cannot_downgrade_or_leave_https` |
+| Credential stripping | `authorization`, `cookie` and `proxy-authorization` are dropped on every hop; a redirected request is replayed as `GET` without a body | `resilience::credentials_are_not_forwarded_across_a_redirect` |
+| No silent follow | credentialed requests (API, token endpoint) still never follow a redirect | `api_commands::redirects_are_never_followed` |
+
+### Windows rename/replace — a real bug, fixed
+
+`std::fs::rename` refuses to overwrite on Windows (`MoveFileEx` without
+`MOVEFILE_REPLACE_EXISTING`), so **the second token write — any refresh — would
+have failed on Windows** while POSIX replaced the file. `storage::replace_file`
+now calls `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`
+and falls back to remove-then-rename. This is compile-checked by CI on Windows and
+exercised by `config::storage::tests::repeated_writes_replace_the_destination` on
+every platform.
+
+### Crash, lock and storage behaviour
+
+| Scenario | Behaviour | Test |
+| --- | --- | --- |
+| Process killed during a refresh | token file remains complete valid JSON; no temp files; the stale lock is recovered by the next command | `audit/signals.py` (SIGKILL), `resilience::a_lock_left_by_a_dead_process_is_recovered` |
+| Lock left by a dead pid | removed after the identity re-check | `resilience::a_lock_left_by_a_dead_process_is_recovered` |
+| Lock file with no pid, older than 60 s | removed | `resilience::an_ancient_lock_without_a_pid_is_recovered` |
+| Lock held by a live pid | not stolen; the waiter gives up after 30 s with the documented message | unit-tested lock semantics; the 30 s wait is deliberately not automated |
+| `logout` during a refresh | the session is always gone afterwards, and no lock file is left | `resilience::logout_during_a_refresh_leaves_no_session` |
+| Read-only / unwritable storage | clean `Could not create the configuration directory …` / `Could not write …` error, no panic, previous session intact | `resilience::unwritable_storage_is_reported_without_panicking` |
+| Widened directory mode (e.g. 0777) | tightened back to 0700, as in v1 | `resilience::a_widened_config_directory_is_repaired` |
+| SIGINT during login / a slow API call | exits promptly, writes nothing, releases the callback port, leaves no journal | `audit/signals.py` (13 checks) |
+| Concurrent readers during writes | a reader never observes a partial document (200 rewrites against a live reader) | `config::storage::tests::readers_never_observe_a_partial_document` |
+
+A true `ENOSPC` cannot be produced without a tiny filesystem, so the failure path is
+exercised by making the storage directory unusable instead. `ulimit -f` was tried
+first and rejected: it delivers `SIGXFSZ` rather than `ENOSPC`, which would have
+tested the wrong thing.
+
+### Proxy authentication — a documented limitation, not a silent failure
+
+`ureq` 2.x does not perform proxy authentication: it sends no `Proxy-Authorization`
+and does not retry a 407. Rather than pretend otherwise, a proxy that demands auth
+now surfaces as a 407 error, and the behaviour is asserted in
+`resilience::authenticated_proxies_are_reported_not_silently_ignored`. `NO_PROXY`
+matching (exact host, leading dot, bare-domain suffix, `host:port`, `*`,
+case-insensitive, loopback always direct) is unit-tested and covered by
+`resilience::no_proxy_excludes_hosts_from_proxy_selection`.
+
+### Malformed input, permissions and empty arguments
+
+The differential harness grew from 81 to **102 cases**: invalid `.aid.json`
+(not JSON, array, missing `app_id`, non-string `client_id`), invalid
+`package.json` (not JSON, `dependencies` as an array), corrupt/typed-wrong/empty
+token documents, a world-readable token file (mode compared after the run),
+unicode and 300-character names, huge `--limit`, and empty-string arguments.
+
+That last group found five real divergences: v1's truthiness checks treat `""` as
+"missing", so `aid apps get ""`, `aid link ""`, `aid sync ""`,
+`aid clients get ""` and `aid apps create -n ""` are usage errors there, while v2
+was happily issuing a request for an empty id. Fixed with `commands::non_empty`,
+which reproduces v1's behaviour at exactly those call sites.
+
+Final differential result: **102/102 identical**.
 
 ## 1. Feature parity — measured, not asserted
 
@@ -163,12 +237,13 @@ is gone. Passes.
 ```text
 cargo fmt --check                                        pass
 cargo clippy --all-targets --all-features -- -D warnings  pass, no warnings
-cargo test                                               191 tests, 0 failures
-                                                         (123 unit + 68 integration)
+cargo test                                               203 tests, 0 failures
+                                                         (125 unit + 78 integration)
 cargo build --release                                    pass, 1,973,152 bytes
-audit/diff_harness.py                                    81/81 cases identical
+audit/diff_harness.py                                    102/102 cases identical
 audit/interop.py                                         12/12 checks
 audit/live_sdk.py                                        5/5 Android + 6/6 JS checks
+audit/signals.py                                         13/13 checks
 audit/fresh_install.sh                                   pass (install + run + uninstall)
 v1 regression suite (node --test)                        62 tests, 0 failures
 ```
@@ -176,4 +251,5 @@ v1 regression suite (node --test)                        62 tests, 0 failures
 Still not verified, and not claimed: Termux/Android runtime, macOS/Windows runtime
 behaviour on real hardware (CI executes the binaries, which is not the same as
 exercising OAuth, permissions and browser launch there), interactive wizard
-prompts, and enterprise TLS interception.
+prompts, enterprise TLS interception, and proxy authentication (unsupported by the
+HTTP client, documented above).

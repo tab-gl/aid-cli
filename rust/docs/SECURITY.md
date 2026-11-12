@@ -27,12 +27,12 @@ rests on the release publisher).
 | No secrets in logs | tokens are never printed; error details pass through `sanitize_detail` (Bearer values, `access_token`/`refresh_token`/`id_token`/`client_secret`/`authorization`/`api_key`/`password` assignments, and URLs are redacted) |
 | Terminal escape protection | `sanitize_detail` drops C0 controls (other than `\r\n\t`, which become spaces), DEL and C1 controls, so a hostile issuer cannot emit cursor moves, title changes or hyperlinks |
 | Restrictive permissions | token and `.aid.json` files `0600`, config directory `0700` (POSIX) |
-| Atomic writes | temp file + `fsync` + `rename`, `create_new` so an existing temp file is never reused |
+| Atomic writes | temp file + `fsync` + atomic replace, `create_new` so an existing temp file is never reused; on Windows the replace uses `MoveFileExW(MOVEFILE_REPLACE_EXISTING)` because `std::fs::rename` refuses to overwrite there |
 | Symlink resistance | token files are read with `symlink_metadata`; symlinks and non-regular files are refused |
 | Refresh race protection | in-process mutex + cross-process lock file + re-read after acquiring the lock |
 | URL validation | issuer must be HTTPS (except loopback), with no credentials, query or fragment; API paths are resolved against the issuer origin and containment-checked after normalisation |
 | Redirect rejection | every credentialed request (API, token endpoint) uses `redirects(0)`; a 3xx is an error, never followed |
-| Bounded redirects for downloads | the unauthenticated SDK metadata/artifact requests may follow at most 5 redirects (GitHub renames repositories and serves assets via a CDN); integrity is enforced by the pinned SHA-256, not by the transport |
+| Bounded redirects for downloads | redirects are followed **manually**: at most 5 hops for the unauthenticated SDK metadata/artifact requests, 0 everywhere else; each hop re-checks the scheme (`https → http` is refused, plain http only between loopback addresses) and drops `authorization`/`cookie`/`proxy-authorization`; integrity rests on the pinned SHA-256, not on the transport |
 | Proxy support | `HTTPS_PROXY`/`HTTP_PROXY` are honoured, `NO_PROXY` respected, and loopback targets are never proxied |
 | Issuer pinning | `tokens.json` records its issuer; a session from another issuer is refused instead of being sent to the wrong service |
 | Timeouts | one deadline per request covering connect, headers and body reads |
@@ -57,6 +57,10 @@ Include the version (`aid --version`), the platform and a reproduction.
 - The lock file is advisory. A crash at exactly the wrong moment can leave a stale
   lock; it is recovered automatically once the owning pid is gone or after 60 s,
   and the error message tells you which file to delete if recovery ever fails.
+- **Proxy authentication is unsupported.** `ureq` 2.x sends no `Proxy-Authorization`
+  and does not retry a 407, so a proxy that demands credentials fails with
+  `Request failed (407): …` rather than working silently. Use an unauthenticated
+  proxy or `NO_PROXY`.
 - TLS trust uses the bundled `webpki-roots` set. A TLS-inspecting proxy (corporate
   MITM, some CI sandboxes) fails with `tls connection init failed`; there is no
   `AIDC_CA_BUNDLE` yet. Workaround for the Android SDK: download

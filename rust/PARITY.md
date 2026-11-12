@@ -20,10 +20,12 @@ resulting `tokens.json` / `.aid.json` and the HTTP request trace.
 | Run | Cases | Identical |
 | --- | --- | --- |
 | First run (before the fixes below) | 81 | 74 |
-| Final run | 81 | **81** (2 with a documented, intentional allowance) |
+| After the output/ordering fixes | 81 | **81** |
+| After adding malformed input, permission modes and empty arguments | 102 | **102** |
 
 Divergences found and fixed: JSON/`.aid.json`/request-body key order, `help` blank
-lines, timeout message formatting, and the read order of `sync` / `clients list`.
+lines, timeout message formatting, the read order of `sync` / `clients list`, and
+five empty-string argument cases where v1's truthiness checks produce a usage error.
 Details and evidence: [`REVIEW.md`](REVIEW.md).
 
 Two allowances are recorded rather than "fixed", because v1 is either racy or

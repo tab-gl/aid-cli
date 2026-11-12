@@ -18,7 +18,7 @@ Identical names, defaults and validation as v1.
 | `TERM=dumb` | — | Disables colour. |
 | `XDG_CONFIG_HOME` | `~/.config` | Base for `aidc/tokens.json` (POSIX). |
 | `APPDATA` | `%USERPROFILE%` | Base for `aidc\tokens.json` (Windows). |
-| `HTTPS_PROXY` / `HTTP_PROXY` | unset | **v2 only.** Proxy for API, token and SDK requests. `https_proxy`/`http_proxy` are also read. Loopback targets are never proxied. |
+| `HTTPS_PROXY` / `HTTP_PROXY` | unset | **v2 only.** Proxy for API, token and SDK requests. `https_proxy`/`http_proxy` are also read. Loopback targets are never proxied. Proxy authentication is **not** supported: a proxy that answers 407 fails the request. |
 | `NO_PROXY` | unset | **v2 only.** Comma-separated hosts (or `*`) that bypass the proxy. |
 | `AIDC_SDK_RELEASE_BASE` | `https://api.github.com/repos/aceyash-dev/ace-id-sdk` | **v2 only.** Base URL for the Android SDK release metadata (mirrors / air-gapped installs). Must be HTTPS or loopback. The pinned SHA-256 is still enforced. |
 

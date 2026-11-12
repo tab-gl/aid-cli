@@ -54,8 +54,16 @@ First release of the Rust implementation. Feature parity with v1 `0.1.4`.
   refuse redirects.
 - `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` are honoured; loopback is never proxied.
 - `AIDC_SDK_RELEASE_BASE` allows installing the Android SDK from a mirror.
-- Verified against the real v1 CLI (81 differential cases), a simultaneous v1/v2
+- Verified against the real v1 CLI (102 differential cases), a simultaneous v1/v2
   refresh race, the live SDK release and a real `npm install`; see `REVIEW.md`.
+- Redirects are followed manually: hop budget, `https → http` downgrade refusal and
+  credential stripping on every hop.
+- Fixed the Windows token write: `std::fs::rename` does not overwrite there, so the
+  second write (any refresh) would have failed; `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`
+  is used instead.
+- Empty-string arguments (`aid apps get ""`, `aid link ""`, …) are usage errors, as in v1.
+- Storage failures now report what could not be written instead of a bare OS error.
+- Documented limitation: proxy authentication (407) is not supported by the HTTP client.
 
 ### Changed relative to v1
 
