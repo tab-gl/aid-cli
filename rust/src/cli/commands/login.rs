@@ -45,7 +45,7 @@ pub fn run(_args: &[String]) -> Result<()> {
         }
     };
 
-    let tokens = merge_tokens(None, &response);
+    let tokens = merge_tokens(None, &response, &config.issuer);
     if let Err(err) = token::save(tokens) {
         spinner.fail();
         return Err(err);

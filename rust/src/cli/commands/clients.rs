@@ -165,6 +165,9 @@ fn list(argv: &[String]) -> Result<()> {
     let config = Config::from_env()?;
     let options = parse_list_options(argv, LIST_USAGE)?;
 
+    // v1 starts both reads in one `Promise.all` (clients declared first), so its
+    // request order and error precedence are racy. v2 pins the declaration order
+    // to stay deterministic.
     let clients = api_get_json(&config, "/clients")?;
     expect_object_array(
         &clients,

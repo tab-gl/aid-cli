@@ -172,6 +172,7 @@ pub fn print_help() {
         ("version", "Show CLI version"),
         ("help", "Show this message"),
     ]);
+    println!();
     println!("  {}", terminal::dim("SHORT FLAGS"));
     command_list(&[
         ("-h", "Alias for --help"),
@@ -185,6 +186,7 @@ pub fn print_help() {
         ("-f", "Alias for --force"),
         ("-v", "Alias for --version"),
     ]);
+    println!();
     println!("  {}", terminal::dim("APPS SUBCOMMANDS"));
     command_list(&[
         ("apps list", "List applications"),
@@ -198,6 +200,7 @@ pub fn print_help() {
             "Compatibility shorthand for apps create ...",
         ),
     ]);
+    println!();
     println!("  {}", terminal::dim("PROJECT LINKING"));
     command_list(&[
         (
@@ -211,6 +214,7 @@ pub fn print_help() {
         ("sync [--dry-run]", "Preview or apply metadata changes"),
         ("sync <app_id>", "Replace the current link with an app"),
     ]);
+    println!();
     println!("  {}", terminal::dim("CLIENTS SUBCOMMANDS"));
     command_list(&[
         (
@@ -228,6 +232,7 @@ pub fn print_help() {
             "Rotate a client secret",
         ),
     ]);
+    println!();
     println!("  {}", terminal::dim("COMMAND CHAINING"));
     command_list(&[
         (
@@ -239,6 +244,7 @@ pub fn print_help() {
             "Stop immediately if a command fails",
         ),
     ]);
+    println!();
     println!("  {}", terminal::dim("ALIASES"));
     command_list(&[
         ("aid", "Canonical command"),
@@ -246,6 +252,7 @@ pub fn print_help() {
         ("aidc", "Compatibility alias"),
         ("app", "Compatibility alias for apps"),
     ]);
+    println!();
     println!("  {}", terminal::dim("SUPPORT"));
     command_list(&[
         ("Docs", "https://docs.ace-base.cc"),

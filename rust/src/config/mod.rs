@@ -86,13 +86,13 @@ impl Config {
         })
     }
 
-    /// Seconds used in user-facing timeout messages.
-    pub fn request_timeout_secs(&self) -> u64 {
-        self.request_timeout.as_millis().div_ceil(1000) as u64
+    /// Seconds value used in user-facing timeout messages (v1 formatting).
+    pub fn request_timeout_label(&self) -> String {
+        crate::util::js_seconds(self.request_timeout.as_millis() as u64)
     }
 
-    pub fn callback_timeout_secs(&self) -> u64 {
-        self.callback_timeout.as_millis().div_ceil(1000) as u64
+    pub fn callback_timeout_label(&self) -> String {
+        crate::util::js_seconds(self.callback_timeout.as_millis() as u64)
     }
 
     /// Issuer base path without a trailing slash ("" for a bare origin).
@@ -235,6 +235,6 @@ mod tests {
         assert!(config(&[("AIDC_REQUEST_TIMEOUT_MS", "-5")]).is_err());
         assert!(config(&[("AIDC_REFRESH_LEEWAY_MS", "1.5")]).is_err());
         let config = config(&[("AIDC_REQUEST_TIMEOUT_MS", "2500")]).unwrap();
-        assert_eq!(config.request_timeout_secs(), 3);
+        assert_eq!(config.request_timeout_label(), "2.5");
     }
 }

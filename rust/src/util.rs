@@ -72,6 +72,23 @@ pub fn hex(input: &[u8]) -> String {
     out
 }
 
+/// Format milliseconds as the seconds value JavaScript prints (`ms / 1000`).
+///
+/// v1 interpolated `${REQUEST_TIMEOUT_MS / 1000}s`, which renders 15000 as `15`
+/// and 300 as `0.3`; messages must stay identical.
+pub fn js_seconds(ms: u64) -> String {
+    let whole = ms / 1000;
+    let fraction = ms % 1000;
+    if fraction == 0 {
+        return whole.to_string();
+    }
+    let mut text = format!("{whole}.{fraction:03}");
+    while text.ends_with('0') {
+        text.pop();
+    }
+    text
+}
+
 /// Constant-time-ish string equality for security-sensitive comparisons.
 pub fn constant_time_eq(left: &str, right: &str) -> bool {
     let (a, b) = (left.as_bytes(), right.as_bytes());
@@ -109,6 +126,15 @@ mod tests {
             "2023-11-14T22:13:20.123Z"
         );
         assert_eq!(format_iso8601(951_782_400_000), "2000-02-29T00:00:00.000Z");
+    }
+
+    #[test]
+    fn seconds_match_javascript_number_formatting() {
+        assert_eq!(js_seconds(15_000), "15");
+        assert_eq!(js_seconds(300), "0.3");
+        assert_eq!(js_seconds(2_500), "2.5");
+        assert_eq!(js_seconds(1_234), "1.234");
+        assert_eq!(js_seconds(300_000), "300");
     }
 
     #[test]

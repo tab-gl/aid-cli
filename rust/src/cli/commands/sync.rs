@@ -86,6 +86,8 @@ pub fn run(argv: &[String]) -> Result<()> {
         }
     };
 
+    // v1 issues both reads in one `Promise.all` (apps declared first), so its
+    // order is racy; v2 pins the declaration order to stay deterministic.
     let app = api_get_json(
         &config,
         &format!("/apps/{}", encode_segment(&linked_app_id)),

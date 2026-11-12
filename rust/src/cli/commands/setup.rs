@@ -191,6 +191,12 @@ pub fn run(argv: &[String]) -> Result<()> {
             return Err(AidError::new("Sign-in completed without a usable session."));
         }
     }
+    if let Some(tokens) = &tokens {
+        if let Err(err) = crate::auth::refresh::ensure_issuer(tokens, &config) {
+            progress.fail("The stored session belongs to another issuer");
+            return Err(err);
+        }
+    }
     progress.complete(1, "Authentication ready");
 
     progress.start(2);
