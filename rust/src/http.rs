@@ -1,0 +1,193 @@
+//! Minimal synchronous HTTP helper built on `ureq`.
+//!
+//! One place owns the three security-relevant transport decisions:
+//! * a hard deadline that also covers response-body reads,
+//! * redirects disabled (a 3xx is surfaced as an error, never followed), and
+//! * a bounded response body so a hostile server cannot exhaust memory.
+
+use std::io::Read;
+use std::time::Duration;
+
+#[derive(Debug)]
+pub struct RawResponse {
+    pub status: u16,
+    pub content_type: Option<String>,
+    pub body: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub enum HttpError {
+    /// The request or response read exceeded the configured deadline.
+    Timeout,
+    /// The server answered with a redirect, which is never followed.
+    Redirect,
+    /// Any other transport-level failure.
+    Transport(String),
+}
+
+pub const DEFAULT_BODY_LIMIT: usize = 8 * 1024 * 1024;
+
+pub struct Request<'a> {
+    pub method: &'a str,
+    pub url: &'a str,
+    pub headers: Vec<(String, String)>,
+    pub body: Option<(&'a str, Vec<u8>)>,
+    pub timeout: Duration,
+    pub body_limit: usize,
+}
+
+impl<'a> Request<'a> {
+    pub fn new(method: &'a str, url: &'a str, timeout: Duration) -> Self {
+        Self {
+            method,
+            url,
+            headers: Vec::new(),
+            body: None,
+            timeout,
+            body_limit: DEFAULT_BODY_LIMIT,
+        }
+    }
+
+    pub fn header(mut self, name: &str, value: impl Into<String>) -> Self {
+        self.headers.push((name.to_string(), value.into()));
+        self
+    }
+
+    pub fn form(self, body: String) -> Self {
+        let mut request = self.header("content-type", "application/x-www-form-urlencoded");
+        request.body = Some(("application/x-www-form-urlencoded", body.into_bytes()));
+        request
+    }
+
+    pub fn json(self, body: Vec<u8>) -> Self {
+        let mut request = self.header("content-type", "application/json");
+        request.body = Some(("application/json", body));
+        request
+    }
+
+    /// Execute the request. Redirects are disabled at the agent level.
+    pub fn send(self) -> Result<RawResponse, HttpError> {
+        let agent = ureq::AgentBuilder::new()
+            .timeout(self.timeout)
+            .redirects(0)
+            .build();
+
+        let mut request = agent.request(self.method, self.url);
+        for (name, value) in &self.headers {
+            request = request.set(name, value);
+        }
+
+        let result = match self.body {
+            Some((content_type, bytes)) => {
+                request.set("content-type", content_type).send_bytes(&bytes)
+            }
+            None => request.call(),
+        };
+
+        let response = match result {
+            Ok(response) => response,
+            Err(ureq::Error::Status(_status, response)) => response,
+            Err(ureq::Error::Transport(transport)) => return Err(classify(&transport)),
+        };
+
+        let status = response.status();
+        if (300..400).contains(&status) {
+            return Err(HttpError::Redirect);
+        }
+
+        let content_type = response.header("content-type").map(str::to_string);
+        let mut body = Vec::new();
+        let mut reader = response.into_reader().take(self.body_limit as u64);
+        match reader.read_to_end(&mut body) {
+            Ok(_) => {}
+            Err(err) if is_timeout(&err.to_string()) => return Err(HttpError::Timeout),
+            Err(err) => return Err(HttpError::Transport(err.to_string())),
+        }
+
+        Ok(RawResponse {
+            status,
+            content_type,
+            body,
+        })
+    }
+}
+
+fn classify(transport: &ureq::Transport) -> HttpError {
+    // `message()` is often empty for I/O failures, so the rendered error (which
+    // includes the underlying cause) is the reliable signal here.
+    let message = transport
+        .message()
+        .map(str::to_string)
+        .unwrap_or_else(|| transport.to_string());
+    let source = std::error::Error::source(transport)
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+
+    if is_timeout(&message) || is_timeout(&source) {
+        return HttpError::Timeout;
+    }
+    if matches!(transport.kind(), ureq::ErrorKind::TooManyRedirects)
+        || message.to_lowercase().contains("redirect")
+    {
+        return HttpError::Redirect;
+    }
+    HttpError::Transport(message)
+}
+
+fn is_timeout(message: &str) -> bool {
+    let message = message.to_lowercase();
+    message.contains("timed out") || message.contains("timeout")
+}
+
+/// Percent-decode a URL component (`+` is treated as a space).
+pub fn percent_decode(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                out.push(b' ');
+                index += 1;
+            }
+            b'%' if index + 2 < bytes.len() => {
+                let hex = &value[index + 1..index + 3];
+                match u8::from_str_radix(hex, 16) {
+                    Ok(byte) => {
+                        out.push(byte);
+                        index += 3;
+                    }
+                    Err(_) => {
+                        out.push(b'%');
+                        index += 1;
+                    }
+                }
+            }
+            byte => {
+                out.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn percent_decoding_handles_plus_and_escapes() {
+        assert_eq!(percent_decode("a+b"), "a b");
+        assert_eq!(percent_decode("%2F%3D"), "/=");
+        assert_eq!(percent_decode("plain"), "plain");
+        assert_eq!(percent_decode("100%"), "100%");
+    }
+
+    #[test]
+    fn timeout_detection_matches_ureq_messages() {
+        assert!(is_timeout("timed out reading response"));
+        assert!(is_timeout("Operation timed out"));
+        assert!(!is_timeout("connection refused"));
+    }
+}
