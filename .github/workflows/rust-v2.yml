@@ -76,6 +76,8 @@ jobs:
     name: build + run ${{ matrix.target }}
     # Every entry builds and runs natively: no cross-compilation is claimed as
     # platform verification, and each binary is executed before it is uploaded.
+    # `ubuntu-24.04-arm` needs GitHub's arm64 hosted runners (public repos);
+    # `macos-13` is the Intel macOS image. Adjust the labels if your plan differs.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
