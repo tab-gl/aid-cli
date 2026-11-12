@@ -56,6 +56,12 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
+      - name: Smoke test the binary
+        run: |
+          ./target/release/aid --version
+          ./target/release/aid --help > /dev/null
+          ./target/release/aid definitely-not-a-command || test $? -eq 1
+
       - name: Report binary size
         run: ls -l target/release/aid
 
@@ -67,27 +73,28 @@ jobs:
           if-no-files-found: error
 
   build:
-    name: build ${{ matrix.target }}
+    name: build + run ${{ matrix.target }}
+    # Every entry builds and runs natively: no cross-compilation is claimed as
+    # platform verification, and each binary is executed before it is uploaded.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            linker: aarch64-linux-gnu-gcc
+            artifact: aid
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
             artifact: aid
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            linker: ""
             artifact: aid.exe
           - target: aarch64-apple-darwin
             os: macos-latest
-            linker: ""
             artifact: aid
           - target: x86_64-apple-darwin
-            os: macos-latest
-            linker: ""
+            os: macos-13
             artifact: aid
     steps:
       - uses: actions/checkout@v4
@@ -96,14 +103,6 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-          rustup target add ${{ matrix.target }}
-
-      - name: Install cross linker (linux arm64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=${{ matrix.linker }}" >> "$GITHUB_ENV"
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -113,10 +112,16 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Smoke test (native targets only)
-        if: matrix.target == 'x86_64-pc-windows-msvc' || matrix.target == 'aarch64-apple-darwin'
+      - name: Run the binary (native)
         shell: bash
-        run: ./target/${{ matrix.target }}/release/${{ matrix.artifact }} --version
+        run: |
+          set -euo pipefail
+          BIN="target/${{ matrix.target }}/release/${{ matrix.artifact }}"
+          "$BIN" --version
+          "$BIN" --help | grep -q USAGE
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/aidcfg"
+          mkdir -p "$XDG_CONFIG_HOME"
+          "$BIN" logout
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
