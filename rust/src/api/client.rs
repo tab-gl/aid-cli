@@ -82,7 +82,7 @@ pub fn api_fetch(
         Err(HttpError::Timeout) => {
             return Err(AidError::new(format!(
                 "Request timed out after {}s.",
-                config.request_timeout_secs()
+                config.request_timeout_label()
             )))
         }
         Err(HttpError::Redirect) => {
