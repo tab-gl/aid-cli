@@ -19,6 +19,9 @@ use crate::sdk::verify::{sha256_bytes, ANDROID_SDK_SHA256};
 use crate::terminal::warn;
 
 pub const ANDROID_SDK_REPO: &str = "aceyash-dev/ace-id-sdk";
+/// Base URL for the SDK release metadata. Overridable so air-gapped installs and
+/// tests can point at a mirror; the pinned digest is still enforced.
+pub const SDK_RELEASE_BASE_ENV: &str = "AIDC_SDK_RELEASE_BASE";
 pub const ANDROID_SDK_RELEASE: &str = "1.1";
 pub const ANDROID_SDK_ASSET: &str = "library-release.aar";
 pub const ANDROID_SDK_DIR: &str = "libs";
@@ -129,12 +132,19 @@ fn executable_for_platform(executable: &str) -> String {
 ///
 /// Returns the project-relative path of the installed artifact.
 pub fn install_android_sdk(config: &Config, root: &Path) -> Result<String> {
-    let release_url = format!(
-        "https://api.github.com/repos/{ANDROID_SDK_REPO}/releases/tags/{ANDROID_SDK_RELEASE}"
-    );
+    let base = std::env::var(SDK_RELEASE_BASE_ENV)
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| value.starts_with("https://") || value.starts_with("http://127.0.0.1"))
+        .unwrap_or_else(|| format!("https://api.github.com/repos/{ANDROID_SDK_REPO}"));
+    let release_url = format!("{base}/releases/tags/{ANDROID_SDK_RELEASE}");
+    // The GitHub API 301-redirects when a repository is renamed, and asset
+    // downloads redirect to a CDN. These requests carry no credentials, so a
+    // bounded redirect is followed; the pinned SHA-256 remains the control.
     let release = Request::new("GET", &release_url, config.request_timeout)
         .header("accept", "application/vnd.github+json")
         .header("user-agent", "ace-id-cli")
+        .follow_redirects(5)
         .send()
         .map_err(|err| sdk_transport_error(config, err))?;
 
@@ -165,7 +175,7 @@ pub fn install_android_sdk(config: &Config, root: &Path) -> Result<String> {
     let download_url = asset
         .get("browser_download_url")
         .and_then(Value::as_str)
-        .filter(|url| url.starts_with("https://"))
+        .filter(|url| url.starts_with("https://") || url.starts_with("http://127.0.0.1"))
         .ok_or_else(|| {
             AidError::new(format!(
                 "Ace ID SDK release {ANDROID_SDK_RELEASE} does not contain an .aar asset."
@@ -181,6 +191,7 @@ pub fn install_android_sdk(config: &Config, root: &Path) -> Result<String> {
 
     let download = Request::new("GET", download_url, config.request_timeout)
         .header("user-agent", "ace-id-cli")
+        .follow_redirects(5)
         .send()
         .map_err(|err| sdk_transport_error(config, err))?;
 
@@ -215,7 +226,7 @@ fn sdk_transport_error(config: &Config, err: HttpError) -> AidError {
     match err {
         HttpError::Timeout => AidError::new(format!(
             "SDK download request timed out after {}s.",
-            config.request_timeout_secs()
+            config.request_timeout_label()
         )),
         HttpError::Redirect => AidError::new("SDK download request failed: unexpected redirect."),
         HttpError::Transport(message) => {

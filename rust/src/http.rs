@@ -34,6 +34,11 @@ pub struct Request<'a> {
     pub body: Option<(&'a str, Vec<u8>)>,
     pub timeout: Duration,
     pub body_limit: usize,
+    /// Number of redirects to follow. `None` (the default) refuses them: every
+    /// request that carries a credential must never be redirected. Unauthenticated
+    /// downloads (the SDK artifact, which GitHub serves via a CDN redirect) opt in
+    /// with a small bound and stay protected by the pinned SHA-256.
+    pub redirects: Option<u32>,
 }
 
 impl<'a> Request<'a> {
@@ -45,7 +50,14 @@ impl<'a> Request<'a> {
             body: None,
             timeout,
             body_limit: DEFAULT_BODY_LIMIT,
+            redirects: None,
         }
+    }
+
+    /// Follow at most `max` redirects (unauthenticated downloads only).
+    pub fn follow_redirects(mut self, max: u32) -> Self {
+        self.redirects = Some(max);
+        self
     }
 
     pub fn header(mut self, name: &str, value: impl Into<String>) -> Self {
@@ -67,10 +79,15 @@ impl<'a> Request<'a> {
 
     /// Execute the request. Redirects are disabled at the agent level.
     pub fn send(self) -> Result<RawResponse, HttpError> {
-        let agent = ureq::AgentBuilder::new()
+        let mut builder = ureq::AgentBuilder::new()
             .timeout(self.timeout)
-            .redirects(0)
-            .build();
+            .redirects(self.redirects.unwrap_or(0));
+        // v1 ignored proxy environment variables (undici does not read them);
+        // v2 honours them so the CLI works behind a corporate proxy.
+        if let Some(proxy) = proxy_from_env(self.url) {
+            builder = builder.proxy(proxy);
+        }
+        let agent = builder.build();
 
         let mut request = agent.request(self.method, self.url);
         for (name, value) in &self.headers {
@@ -92,6 +109,7 @@ impl<'a> Request<'a> {
 
         let status = response.status();
         if (300..400).contains(&status) {
+            // Reachable when redirect following is disabled or exhausted.
             return Err(HttpError::Redirect);
         }
 
@@ -110,6 +128,50 @@ impl<'a> Request<'a> {
             body,
         })
     }
+}
+
+/// Build a proxy from `HTTPS_PROXY` / `HTTP_PROXY` (and their lowercase forms).
+///
+/// Loopback targets and hosts listed in `NO_PROXY` bypass the proxy, so a local
+/// issuer (and the test suite) keeps working on a proxied machine.
+fn proxy_from_env(url: &str) -> Option<ureq::Proxy> {
+    let host = url::Url::parse(url)
+        .ok()
+        .and_then(|parsed| parsed.host_str().map(str::to_string))?;
+    let loopback = matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1" | "[::1]");
+    if loopback || no_proxy_matches(&host) {
+        return None;
+    }
+    let is_https = url.starts_with("https://");
+    let candidates: [&str; 2] = if is_https {
+        ["HTTPS_PROXY", "https_proxy"]
+    } else {
+        ["HTTP_PROXY", "http_proxy"]
+    };
+    let raw = candidates
+        .iter()
+        .find_map(|name| std::env::var(name).ok())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())?;
+    ureq::Proxy::new(&raw).ok()
+}
+
+/// True when `NO_PROXY` / `no_proxy` lists this host (suffix match, `*` = all).
+fn no_proxy_matches(host: &str) -> bool {
+    let Some(list) = std::env::var("NO_PROXY")
+        .ok()
+        .or_else(|| std::env::var("no_proxy").ok())
+    else {
+        return false;
+    };
+    list.split(',')
+        .map(|entry| entry.trim().trim_start_matches('.').to_lowercase())
+        .filter(|entry| !entry.is_empty())
+        .any(|entry| {
+            entry == "*"
+                || host.eq_ignore_ascii_case(&entry)
+                || host.to_lowercase().ends_with(&format!(".{entry}"))
+        })
 }
 
 fn classify(transport: &ureq::Transport) -> HttpError {
@@ -131,7 +193,9 @@ fn classify(transport: &ureq::Transport) -> HttpError {
     {
         return HttpError::Redirect;
     }
-    HttpError::Transport(message)
+    // Transport messages can embed the request or proxy URL; redact before it
+    // reaches the terminal.
+    HttpError::Transport(crate::api::errors::sanitize_detail(&message))
 }
 
 fn is_timeout(message: &str) -> bool {
@@ -182,6 +246,21 @@ mod tests {
         assert_eq!(percent_decode("%2F%3D"), "/=");
         assert_eq!(percent_decode("plain"), "plain");
         assert_eq!(percent_decode("100%"), "100%");
+    }
+
+    #[test]
+    fn loopback_targets_bypass_the_proxy() {
+        // Regardless of the proxy environment, loopback is never proxied.
+        assert!(proxy_from_env("http://127.0.0.1:8080/apps").is_none());
+        assert!(proxy_from_env("http://localhost:9000/token").is_none());
+    }
+
+    #[test]
+    fn no_proxy_suffix_matching() {
+        // Depends on the ambient NO_PROXY, so only assert the suffix rule.
+        assert!(!no_proxy_matches(
+            "definitely-not-in-any-no-proxy-list.example"
+        ));
     }
 
     #[test]
