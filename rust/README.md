@@ -14,19 +14,53 @@ files, same OAuth flow, no Node.js runtime.
 
 ### Prebuilt binary (recommended)
 
-Download the archive for your platform from the v2 GitHub Releases page, verify it
-against `SHA256SUMS`, and put `aid` on your `PATH`:
+Download the binary for your platform from the v2 GitHub Releases page, verify it
+against `SHA256SUMS`, and put `aid` on your `PATH`.
+
+#### Linux x86_64 example
 
 ```sh
-# Linux x86_64 example
 mkdir -p "$HOME/.local/bin"
-curl -LO https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/aid-x86_64-unknown-linux-gnu
-curl -LO https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/SHA256SUMS
+curl -fLO https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/aid-x86_64-unknown-linux-gnu
+curl -fLO https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 install -m 0755 aid-x86_64-unknown-linux-gnu "$HOME/.local/bin/aid"
 export PATH="$HOME/.local/bin:$PATH"
 aid --version
 ```
+
+#### Windows (PowerShell)
+
+Download `aid-x86_64-pc-windows-msvc.exe` and `SHA256SUMS` from the release.
+Verify the checksum with a SHA-256 utility, then place `aid-x86_64-pc-windows-msvc.exe`
+in a directory on your `PATH` and rename it to `aid.exe`.
+
+#### macOS
+
+Download the matching binary:
+- Apple Silicon: `aid-aarch64-apple-darwin`
+- Intel: `aid-x86_64-apple-darwin`
+
+Verify the checksum, then install it to a directory on your `PATH`, for example
+`/usr/local/bin/aid` (or `$HOME/.local/bin/aid`).
+
+#### Android (Termux)
+
+The Android builds are command-line ELF binaries for **Termux**, not APKs.
+Install Termux, then run:
+
+```sh
+pkg update
+pkg install curl coreutils
+curl -fL https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/aid-aarch64-linux-android -o "$PREFIX/bin/aid"
+chmod 755 "$PREFIX/bin/aid"
+aid --version
+```
+
+The ARM64 build is for most modern Android phones. Other Android release assets
+are available for `armv7-linux-androideabi` and `x86_64-linux-android`.
+The Android binaries are cross-compiled with the Android NDK; they must still be
+tested on physical devices for OAuth browser hand-off and filesystem behavior.
 
 ### From source
 
@@ -50,21 +84,24 @@ run time.
 
 ### Supported platforms
 
-| Target | Status |
+| Platform / target | Build and CI status |
 | --- | --- |
-| `x86_64-unknown-linux-gnu` | Built, executed, tested and measured here |
-| `aarch64-unknown-linux-gnu` | CI builds and runs it natively on `ubuntu-24.04-arm` |
-| `x86_64-pc-windows-msvc` | CI builds and runs it natively on `windows-latest` |
-| `aarch64-apple-darwin` | CI builds and runs it natively on `macos-latest` |
-| `x86_64-apple-darwin` | CI builds and runs it natively on `macos-13` |
-| Android / Termux | **Not verified.** The `termux-open-url` browser path is implemented; the platform has never been exercised |
+| `x86_64-unknown-linux-gnu` | Built, executed and smoke-tested natively |
+| `aarch64-unknown-linux-gnu` | Built and smoke-tested natively on ARM64 Linux |
+| `x86_64-pc-windows-msvc` | Built and smoke-tested natively on Windows |
+| `aarch64-apple-darwin` | Built and smoke-tested natively on Apple Silicon |
+| `x86_64-apple-darwin` | Built and smoke-tested natively on Intel macOS |
+| `aarch64-linux-android` | Cross-compiled with Android NDK; device testing pending |
+| `armv7-linux-androideabi` | Cross-compiled with Android NDK; device testing pending |
+| `x86_64-linux-android` | Cross-compiled with Android NDK; emulator testing pending |
 
-A green CI build means the binary compiled *and executed* (`--version`, `--help`,
-`logout`) on that platform. It does not prove the OAuth flow, file permissions or
-browser hand-off work there — treat those as unverified until someone runs them on
-the device. The Windows-specific code paths (`APPDATA`, `explorer.exe`, `tasklist`
-liveness probe, `.cmd` package managers) are implemented but only covered by
-compilation and the CI smoke test.
+A green native CI smoke test means the binary compiled and executed
+(`--version`, `--help`, `logout`) on that platform. Android binaries are
+cross-compiled and inspected as ELF files in CI, but are not executed on a
+physical Android device by GitHub Actions. OAuth browser hand-off, file permissions
+and device-specific behavior must be verified on-device. The Windows-specific
+code paths (`APPDATA`, `explorer.exe`, `tasklist` liveness probe, `.cmd`
+package managers) are implemented but only covered by compilation and CI smoke tests.
 
 ## Quick start
 
