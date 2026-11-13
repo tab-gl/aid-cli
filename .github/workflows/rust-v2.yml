@@ -94,7 +94,7 @@ jobs:
             os: macos-latest
             artifact: aid
           - target: x86_64-apple-darwin
-            os: macos-15-intel
+            os: macos-13
             artifact: aid
     steps:
       - uses: actions/checkout@v4
@@ -118,7 +118,8 @@ jobs:
           set -euo pipefail
           BIN="target/${{ matrix.target }}/release/${{ matrix.artifact }}"
           "$BIN" --version
-          "$BIN" --help | grep -q USAGE
+          "$BIN" --help > "$RUNNER_TEMP/aid-help.txt"
+          grep -q USAGE "$RUNNER_TEMP/aid-help.txt"
           export XDG_CONFIG_HOME="$RUNNER_TEMP/aidcfg"
           mkdir -p "$XDG_CONFIG_HOME"
           "$BIN" logout
