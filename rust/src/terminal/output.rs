@@ -9,6 +9,21 @@ use std::sync::OnceLock;
 
 const RESET: &str = "\x1b[0m";
 
+/* ── Palette ────────────────────────────── */
+
+// A single neutral, hue-free ramp carries the whole interface: near-white for
+// structure, a softer foreground for body text, then muted and faint steps for
+// labels and rules. Colour is reserved for the two status exceptions below, so
+// success and failure stay unmistakable without tinting ordinary output.
+const FOREGROUND: &str = "\x1b[38;2;228;228;228m";
+const MUTED: &str = "\x1b[38;2;161;161;161m";
+const FAINT: &str = "\x1b[38;2;113;113;113m";
+const STRONG: &str = "\x1b[38;2;250;250;250m\x1b[1m";
+
+// The only two styles allowed a hue.
+const SUCCESS: &str = "\x1b[38;2;115;190;145m";
+const ERROR: &str = "\x1b[38;2;225;90;90m";
+
 fn colors_enabled() -> bool {
     static ENABLED: OnceLock<bool> = OnceLock::new();
     *ENABLED.get_or_init(|| {
@@ -25,32 +40,46 @@ fn colors_enabled() -> bool {
     })
 }
 
-fn paint(prefix: &str, value: &str) -> String {
-    if colors_enabled() {
+fn paint_with(enabled: bool, prefix: &str, value: &str) -> String {
+    if enabled {
         format!("{prefix}{value}{RESET}")
     } else {
         value.to_string()
     }
 }
 
+fn paint(prefix: &str, value: &str) -> String {
+    paint_with(colors_enabled(), prefix, value)
+}
+
+/// Structural emphasis: the near-white end of the ramp.
 pub fn bold(value: &str) -> String {
-    paint("\x1b[38;2;244;244;245m\x1b[1m", value)
+    paint(STRONG, value)
 }
 
+/// Body text: one step below `bold`, still clearly readable.
+pub fn text(value: &str) -> String {
+    paint(FOREGROUND, value)
+}
+
+/// Labels, table headers and secondary detail.
 pub fn dim(value: &str) -> String {
-    paint("\x1b[38;2;161;161;170m", value)
+    paint(MUTED, value)
 }
 
+/// Rules, placeholders and the quietest interface marks.
+pub fn faint(value: &str) -> String {
+    paint(FAINT, value)
+}
+
+/// Success is one of the two deliberate colour exceptions.
 pub fn green(value: &str) -> String {
-    paint("\x1b[38;2;115;190;145m", value)
+    paint(SUCCESS, value)
 }
 
+/// Failure is the other deliberate colour exception.
 pub fn red(value: &str) -> String {
-    paint("\x1b[38;2;225;90;90m", value)
-}
-
-pub fn yellow(value: &str) -> String {
-    paint("\x1b[38;2;220;185;105m", value)
+    paint(ERROR, value)
 }
 
 /// Terminal width in columns, defaulting to 80 like v1.
@@ -62,28 +91,15 @@ pub fn terminal_width() -> usize {
         .unwrap_or(80)
 }
 
-fn strip_ansi(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    let mut chars = value.chars().peekable();
-    while let Some(ch) = chars.next() {
-        if ch == '\x1b' && chars.peek() == Some(&'[') {
-            chars.next();
-            for next in chars.by_ref() {
-                if ('@'..='~').contains(&next) {
-                    break;
-                }
-            }
-            continue;
-        }
-        out.push(ch);
-    }
-    out
-}
-
 /// Display width of a single char: 0 for combining/joiner marks, 2 for wide
 /// East Asian and emoji code points, 1 otherwise.
 fn char_width(ch: char) -> usize {
     let code = ch as u32;
+    // Fast path: printable ASCII and Latin-1 are always one column and are by
+    // far the most common characters in tables, ids and labels.
+    if code < 0x0300 {
+        return 1;
+    }
     if matches!(code, 0x200d | 0xfe0e | 0xfe0f) || (0x0300..=0x036f).contains(&code) {
         return 0;
     }
@@ -102,8 +118,26 @@ fn char_width(ch: char) -> usize {
     1
 }
 
+/// Display width of `value`, skipping ANSI escapes without allocating.
 pub fn visible_len(value: &str) -> usize {
-    strip_ansi(value).chars().map(char_width).sum()
+    if !value.as_bytes().contains(&0x1b) {
+        return value.chars().map(char_width).sum();
+    }
+    let mut width = 0;
+    let mut chars = value.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\x1b' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if ('@'..='~').contains(&next) {
+                    break;
+                }
+            }
+            continue;
+        }
+        width += char_width(ch);
+    }
+    width
 }
 
 pub fn pad_display(value: &str, width: usize) -> String {
@@ -212,21 +246,22 @@ pub fn wrap_text(value: &str, width: usize) -> Vec<String> {
 /* ── Status lines ───────────────────────── */
 
 pub fn success(message: &str) {
-    println!("\n{} {}\n", green("✓"), message);
+    println!("\n{} {}\n", green("✓"), text(message));
 }
 
 pub fn failure(message: &str) {
     eprintln!("\n{} {}\n", red("✗"), message);
 }
 
+/// Warnings stay monochrome: a bold mark, not a third accent colour.
 pub fn warn(message: &str) {
-    eprintln!("{} {}", yellow("!"), message);
+    eprintln!("{} {}", bold("!"), text(message));
 }
 
 pub fn info(message: &str) {
     let width = terminal_width();
     for line in wrap_text(message, width.saturating_sub(2)) {
-        println!("  {line}");
+        println!("  {}", text(&line));
     }
 }
 
@@ -349,8 +384,11 @@ fn render_wide_table(headers: &[&str], rows: &[Vec<String>], natural: &[usize], 
             .collect();
         println!("  {}", cells.join(gap));
     }
-    let rule: Vec<String> = widths.iter().map(|size| "─".repeat(*size)).collect();
-    println!("  {}", rule.join("──"));
+    let rule: Vec<String> = widths
+        .iter()
+        .map(|size| faint(&"─".repeat(*size)))
+        .collect();
+    println!("  {}", rule.join(&faint("──")));
 
     for row in rows {
         let cells: Vec<Vec<String>> = row
@@ -364,10 +402,10 @@ fn render_wide_table(headers: &[&str], rows: &[Vec<String>], natural: &[usize], 
                 .iter()
                 .enumerate()
                 .map(|(index, lines)| {
-                    pad_display(
+                    text(&pad_display(
                         lines.get(line).map(String::as_str).unwrap_or(""),
                         widths[index],
-                    )
+                    ))
                 })
                 .collect();
             println!("  {}", rendered.join(gap));
@@ -381,7 +419,7 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) {
         return;
     }
     if rows.is_empty() {
-        println!("\n{}\n", dim("(empty)"));
+        println!("\n{}\n", faint("(empty)"));
         return;
     }
 
@@ -416,7 +454,7 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) {
                 }
                 let value = row.get(index).cloned().unwrap_or_default();
                 for line in wrap_text(&value, 1.max(width.saturating_sub(6))) {
-                    println!("      {line}");
+                    println!("      {}", text(&line));
                 }
             }
             println!();
@@ -427,11 +465,11 @@ pub fn table(headers: &[&str], rows: &[Vec<String>]) {
 
 /* ── Usage ──────────────────────────────── */
 
-pub fn usage(text: &str) {
+pub fn usage(body: &str) {
     println!();
-    for line in text.trim().split('\n') {
+    for line in body.trim().split('\n') {
         for wrapped in wrap_text(line, 1.max(terminal_width().saturating_sub(2))) {
-            println!("  {wrapped}");
+            println!("  {}", text(&wrapped));
         }
     }
     println!();
@@ -466,17 +504,17 @@ pub fn command_list(rows: &[(&str, &str)]) {
             println!(
                 "{indent}{}{gap}{}",
                 bold(&pad_display(command, command_width)),
-                description_lines.first().map(String::as_str).unwrap_or("")
+                text(description_lines.first().map(String::as_str).unwrap_or(""))
             );
             let continuation = format!("{indent}{}{gap}", " ".repeat(command_width));
             for line in description_lines.iter().skip(1) {
-                println!("{continuation}{line}");
+                println!("{continuation}{}", text(line));
             }
             continue;
         }
 
         if visible_len(&format!("{indent}{command}{gap}{description}")) <= width {
-            println!("{indent}{}{gap}{description}", bold(command));
+            println!("{indent}{}{gap}{}", bold(command), text(description));
             continue;
         }
 
@@ -487,7 +525,7 @@ pub fn command_list(rows: &[(&str, &str)]) {
             description,
             1.max(width.saturating_sub(description_indent.len())),
         ) {
-            println!("{description_indent}{line}");
+            println!("{description_indent}{}", text(&line));
         }
     }
     println!();
@@ -513,7 +551,12 @@ pub fn show_banner(version: &str) {
     for line in WORDMARK {
         let _ = writeln!(handle, "{}", bold(line));
     }
-    let _ = writeln!(handle, "   {}  {}", dim("CLI"), dim(&format!("v{version}")));
+    let _ = writeln!(
+        handle,
+        "   {}  {}",
+        dim("CLI"),
+        faint(&format!("v{version}"))
+    );
     let _ = writeln!(handle);
     let _ = handle.flush();
 }
@@ -574,5 +617,50 @@ mod tests {
     fn pad_display_uses_visible_width() {
         assert_eq!(pad_display("ab", 4), "ab  ");
         assert_eq!(visible_len(&pad_display("日本", 4)), 4);
+    }
+
+    #[test]
+    fn colour_off_returns_plain_text() {
+        for prefix in [STRONG, FOREGROUND, MUTED, FAINT, SUCCESS, ERROR] {
+            assert_eq!(paint_with(false, prefix, "value"), "value");
+        }
+    }
+
+    /// Extract the truecolor channels from a style prefix.
+    fn channels(prefix: &str) -> (u8, u8, u8) {
+        let body = prefix.strip_prefix("\x1b[38;2;").expect("truecolor prefix");
+        let end = body.find('m').expect("terminated prefix");
+        let mut parts = body[..end]
+            .split(';')
+            .map(|part| part.parse::<u8>().expect("channel"));
+        (
+            parts.next().expect("red"),
+            parts.next().expect("green"),
+            parts.next().expect("blue"),
+        )
+    }
+
+    #[test]
+    fn the_ramp_is_truly_monochrome() {
+        for prefix in [STRONG, FOREGROUND, MUTED, FAINT] {
+            let (red, green, blue) = channels(prefix);
+            assert!(red == green && green == blue, "{prefix} carries a hue");
+        }
+    }
+
+    #[test]
+    fn success_and_error_are_the_only_accents() {
+        let success = channels(SUCCESS);
+        let error = channels(ERROR);
+        for accent in [success, error] {
+            let (red, green, blue) = accent;
+            assert!(red != green || green != blue, "accent {accent:?} is grey");
+        }
+        assert_ne!(success, error);
+        for prefix in [STRONG, FOREGROUND, MUTED, FAINT] {
+            let ramp = channels(prefix);
+            assert_ne!(ramp, success);
+            assert_ne!(ramp, error);
+        }
     }
 }

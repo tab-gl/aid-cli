@@ -28,6 +28,9 @@ All notable changes to the Ace ID CLI are documented here.
 - Bounded and redacted API, OAuth, and deletion error details.
 - Added regression coverage for refresh races, setup recovery, API error redaction, linked-client ownership, and malformed project manifests.
 
+### Terminal output
+- The palette is monochrome: a single neutral near-white ramp carries structure and body text, and colour is reserved for the two status exceptions — success (green) and errors (red). Setup warnings and skipped steps no longer introduce a third hue.
+
 ### Fixed
 - Keep API, OAuth token, and Android SDK request deadlines active while response bodies are consumed.
 - Added a regression test for API responses that send headers but never finish the body.

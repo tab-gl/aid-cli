@@ -1,4 +1,4 @@
-import { green, dim, yellow } from "./colors.js";
+import { green, red, dim } from "./colors.js";
 
 const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 const SEGMENTER = typeof Intl.Segmenter === "function"
@@ -105,8 +105,8 @@ export function createStepProgress(steps, { stream = process.stdout, enabled = s
     const label = String(message || steps[index] || "Setup");
     const number = `${Math.min(index + 1, total)}/${total}`;
     const marker = status === "complete" ? green("✓")
-      : status === "failed" ? yellow("!")
-      : status === "skipped" ? yellow("–")
+      : status === "failed" ? red("!")
+      : status === "skipped" ? dim("–")
       : dim("›");
     const prefix = `  ${marker} [${bar}] ${String(percent).padStart(3)}%  ${number}  `;
     const labelWidth = Math.max(1, terminalColumns - visibleWidth(prefix));

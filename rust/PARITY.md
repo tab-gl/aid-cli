@@ -49,7 +49,7 @@ vague there:
 | Per-command usage strings and exit codes | `parseArgs` catch blocks | `cli::args` + each command | Ported, Tested | `cli_surface::usage_errors_match_v1_text` |
 | Banner (half-block wordmark + `CLI v<version>`) | `ui/banner.js` | `terminal::output::show_banner` | Ported | `cli_surface::help_prints_the_command_reference` (banner present) |
 | Responsive tables, key/value fields, command lists, word wrap | `ui/format.js` | `terminal::output` | Ported, Tested | `terminal::output::tests::*` |
-| Colour palette, `NO_COLOR`, `TERM=dumb`, TTY detection | `ui/colors.js` | `terminal::output::colors_enabled` | Ported | `cli_surface` runs with `NO_COLOR=1` throughout |
+| Colour palette, `NO_COLOR`, `TERM=dumb`, TTY detection | `ui/colors.js` | `terminal::output::colors_enabled` | Ported; both CLIs now use one monochrome ramp, with success and error as the only accents | `terminal::output::tests::the_ramp_is_truly_monochrome`, `success_and_error_are_the_only_accents`; `cli_surface` runs with `NO_COLOR=1` throughout |
 | Screen clear on help (no alternate buffer) | `ui/screen.js` | `terminal::output::clear_screen` | Ported | — (visual, TTY-only) |
 | Spinner while waiting for the browser | `ui/spinner.js` | `terminal::spinner` | Ported, Tested | `terminal::spinner::tests::spinner_is_a_no_op_without_a_terminal` |
 

@@ -2,8 +2,7 @@ import {
   bold,
   dim,
   green,
-  red,
-  yellow
+  red
 } from "./colors.js";
 
 const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]/g;
@@ -139,7 +138,7 @@ export function failure(message) {
 }
 
 export function warn(message) {
-  console.error(`${yellow("!")} ${message}`);
+  console.error(`${bold("!")} ${message}`);
 }
 
 export function info(message) {

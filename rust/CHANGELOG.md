@@ -33,6 +33,9 @@ First release of the Rust implementation. Feature parity with v1 `0.1.4`.
   Android artifact download.
 - Responsive terminal output: banner, tables, key/value blocks, command lists,
   spinner, colour with `NO_COLOR` support.
+- Monochrome terminal palette: one neutral near-white ramp carries structure and
+  body text, and colour is reserved for the two status exceptions — success
+  (green) and errors (red). Warnings stay monochrome.
 - Test suite: 117 unit tests + 65 integration tests, including an end-to-end
   login against a loopback mock, concurrent refresh, recovery and cleanup paths.
 - Rust CI workflow (`.github/workflows/rust-v2.yml`) with fmt, clippy, tests,

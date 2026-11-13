@@ -2,8 +2,9 @@
  * Ace ID terminal palette.
  *
  * Keep terminal text in a neutral near-white hierarchy instead of
- * using one white value everywhere. Semantic status colors remain
- * separate so errors and success states retain their meaning.
+ * using one white value everywhere. Colour is reserved for the two
+ * status exceptions — success and errors — so those stay meaningful
+ * without tinting ordinary output.
  */
 
 function supportsColor(stream) {
@@ -49,8 +50,6 @@ export const white = (s) => wrap(fgPureWhite)(s);
 
 export const red = (s) => wrap(ansi("38;2;225;90;90"))(s);
 export const green = (s) => wrap(ansi("38;2;115;190;145"))(s);
-export const yellow = (s) => wrap(ansi("38;2;220;185;105"))(s);
-export const blue = (s) => wrap(ansi("38;2;95;155;190"))(s);
 export const gray = dim;
 
 export const inverse = (s) =>
