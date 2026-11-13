@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.75"
 description = "Ace Identity Console - Rust CLI for AIDC applications and OAuth clients"
 license = "MIT"
-repository = "https://github.com/aceyash-dev/aid-cli"
+repository = "https://github.com/tab-gl/aid-cli"
 
 [lib]
 name = "ace_id_cli"

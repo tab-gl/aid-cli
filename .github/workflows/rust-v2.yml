@@ -94,7 +94,7 @@ jobs:
             os: macos-latest
             artifact: aid
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-15-intel
             artifact: aid
     steps:
       - uses: actions/checkout@v4

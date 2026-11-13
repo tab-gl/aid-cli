@@ -60,8 +60,10 @@ pub fn harden_file(path: &Path, mode: u32) -> Result<()> {
 
 /// Create `path` (and parents) as a private directory.
 pub fn ensure_private_dir(path: &Path) -> Result<()> {
-    if cfg!(unix) {
+    #[cfg(unix)]
+    {
         use std::os::unix::fs::DirBuilderExt;
+
         let mut builder = fs::DirBuilder::new();
         builder.recursive(true);
         builder.mode(PRIVATE_DIR_MODE);
@@ -71,7 +73,9 @@ pub fn ensure_private_dir(path: &Path) -> Result<()> {
                 path.display()
             ))
         })?;
-    } else {
+    }
+    #[cfg(not(unix))]
+    {
         fs::create_dir_all(path).map_err(|err| {
             AidError::new(format!(
                 "Could not create the configuration directory {}: {err}",
