@@ -12,6 +12,20 @@ files, same OAuth flow, no Node.js runtime.
 
 ## Install
 
+### macOS (Homebrew)
+
+```sh
+brew tap tab-gl/tap
+brew install aid
+```
+
+### Windows (Scoop)
+
+```powershell
+scoop bucket add tab-gl https://github.com/tab-gl/scoop-bucket
+scoop install aid
+```
+
 ### Prebuilt binary (recommended)
 
 Download the binary for your platform from the v2 GitHub Releases page, verify it
@@ -21,8 +35,8 @@ against `SHA256SUMS`, and put `aid` on your `PATH`.
 
 ```sh
 mkdir -p "$HOME/.local/bin"
-curl -fLO https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/aid-x86_64-unknown-linux-gnu
-curl -fLO https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/SHA256SUMS
+curl -fLO https://github.com/tab-gl/aid-cli/releases/download/v2.0.0/aid-x86_64-unknown-linux-gnu
+curl -fLO https://github.com/tab-gl/aid-cli/releases/download/v2.0.0/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 install -m 0755 aid-x86_64-unknown-linux-gnu "$HOME/.local/bin/aid"
 export PATH="$HOME/.local/bin:$PATH"
@@ -52,7 +66,7 @@ Install Termux, then run:
 ```sh
 pkg update
 pkg install curl coreutils
-curl -fL https://github.com/aceyash-dev/aid-cli/releases/download/v2.0.0/aid-aarch64-linux-android -o "$PREFIX/bin/aid"
+curl -fL https://github.com/tab-gl/aid-cli/releases/download/v2.0.0/aid-aarch64-linux-android -o "$PREFIX/bin/aid"
 chmod 755 "$PREFIX/bin/aid"
 aid --version
 ```
@@ -65,7 +79,7 @@ tested on physical devices for OAuth browser hand-off and filesystem behavior.
 ### From source
 
 ```sh
-git clone https://github.com/aceyash-dev/aid-cli.git
+git clone https://github.com/tab-gl/aid-cli.git
 cd aid-cli
 git checkout v2-rust
 cd rust
