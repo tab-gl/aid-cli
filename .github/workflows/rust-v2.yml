@@ -66,17 +66,17 @@ jobs:
       - name: Report binary size
         run: ls -l target/release/aid
 
-      - name: Upload linux x86_64 binary
+      - name: Upload validation binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-x86_64-unknown-linux-gnu
+          name: validate-aid-x86_64-unknown-linux-gnu
           path: rust/target/release/aid
           if-no-files-found: error
 
   build:
-    name: build + run ${{ matrix.target }}
+    name: build + run ${ matrix.target }
     # These targets build and run natively on their matching GitHub runners.
-    runs-on: ${{ matrix.os }}
+    runs-on: ${${ matrix.os §}}
     strategy:
       fail-fast: false
       matrix:
@@ -107,16 +107,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: ${{ matrix.target }}
+          key: ${${ matrix.target §}}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${${ matrix.target §}}
 
       - name: Run the binary (native)
         shell: bash
         run: |
           set -euo pipefail
-          BIN="target/${{ matrix.target }}/release/${{ matrix.artifact }}"
+          BIN="target/${${ matrix.target §}}/release/${${ matrix.artifact §}}"
           "$BIN" --version
           "$BIN" --help > "$RUNNER_TEMP/aid-help.txt"
           grep -q USAGE "$RUNNER_TEMP/aid-help.txt"
@@ -127,12 +127,12 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-${{ matrix.target }}
-          path: rust/target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          name: aid-${${ matrix.target §}}
+          path: rust/target/${${ matrix.target §}}/release/${${ matrix.artifact §}}
           if-no-files-found: error
 
   android:
-    name: build Android ${{ matrix.target }}
+    name: build Android ${${ matrix.target §}}
     # Android binaries are cross-compiled with the official Android NDK.
     # They are ELF executables for Termux, not APKs.
     runs-on: ubuntu-latest
@@ -163,34 +163,34 @@ jobs:
           sdkmanager --install "ndk;27.2.12479018"
           NDK_BIN="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_${{ matrix.target_env }}_LINKER=$NDK_BIN/${{ matrix.linker }}" >> "$GITHUB_ENV"
-          echo "CC=$NDK_BIN/${{ matrix.linker }}" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_${${ matrix.target_env §}}_LINKER=$NDK_BIN/${${ matrix.linker §}}" >> "$GITHUB_ENV"
+          echo "CC=$NDK_BIN/${${ matrix.linker §}}" >> "$GITHUB_ENV"
           echo "AR=$NDK_BIN/llvm-ar" >> "$GITHUB_ENV"
 
       - name: Install Rust Android target
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-          rustup target add ${{ matrix.target }}
+          rustup target add ${${ matrix.target §}}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: android-${{ matrix.target }}
+          key: android-${${ matrix.target §}}
 
       - name: Build Android binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${${ matrix.target §}}
 
       - name: Inspect Android ELF binary
         run: |
-          file target/${{ matrix.target }}/release/aid
-          readelf -h target/${{ matrix.target }}/release/aid | grep -E 'Class:|Machine:'
+          file target/${${ matrix.target §}}/release/aid
+          readelf -h target/${${ matrix.target §}}/release/aid | grep -E 'Class:|Machine:'
 
       - name: Upload Android binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-${{ matrix.target }}
-          path: rust/target/${{ matrix.target }}/release/aid
+          name: aid-${${ matrix.target §}}
+          path: rust/target/${${ matrix.target §}}/release/aid
           if-no-files-found: error
 
   release:
@@ -236,3 +236,67 @@ jobs:
 
             These artifacts are independent of the v1 npm package (`ace-id`) and
             do not replace any v1 release asset.
+
+  publish-npm:
+    name: publish Rust v2 to npm
+    if: startsWith(github.ref, 'refs/tags/v2')
+    needs: [validate, build, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download native binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aid-*
+          path: dist
+          merge-multiple: false
+
+      - name: Verify tag matches Cargo version and stage npm targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          crate_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "ace-id-cli") | .version')"
+          if [ "$tag_version" != "$crate_version" ]; then
+            echo "Tag version ($tag_version) does not match rust/Cargo.toml ($crate_version)." >&2
+            exit 1
+          fi
+
+          for target in \
+            x86_64-unknown-linux-gnu \
+            aarch64-unknown-linux-gnu \
+            x86_64-pc-windows-msvc \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin; do
+            mkdir -p "target/$target/release"
+            if [ -f "../dist/aid-$target/aid.exe" ]; then
+              cp "../dist/aid-$target/aid.exe" "target/$target/release/aid.exe"
+            else
+              cp "../dist/aid-$target/aid" "target/$target/release/aid"
+            fi
+          done
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org/
+
+      - name: Install cargo-npm
+        run: cargo install --locked cargo-npm
+
+      - name: Generate platform packages
+        run: cargo npm generate
+
+      - name: Authenticate with npm
+        run: npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN §}}
+
+      - name: Publish platform packages and CLI
+        run: cargo npm publish
+        env:
+          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN §}}
