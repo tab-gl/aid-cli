@@ -7,6 +7,7 @@ name: Rust v2 CI
 on:
   push:
     branches: [v2-rust]
+    tags: ['v2*']
     paths:
       - "rust/**"
       - ".github/workflows/rust-v2.yml"
@@ -207,12 +208,12 @@ jobs:
       - name: Stage binaries and checksums
         run: |
           set -euo pipefail
-          mkdir -p release
-          for dir in dist/aid-*; do
-            target="${dir#dist/aid-}"
-            cp "$dir/aid" "release/aid-$target" 2>/dev/null || cp "$dir/aid.exe" "release/aid-$target.exe"
+          mkdir -p ../release
+          for dir in ../dist/aid-*; do
+            target="${dir#../dist/aid-}"
+            cp "$dir/aid" "../release/aid-$target" 2>/dev/null || cp "$dir/aid.exe" "../release/aid-$target.exe"
           done
-          cd release
+          cd ../release
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
