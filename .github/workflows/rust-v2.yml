@@ -76,7 +76,7 @@ jobs:
   build:
     name: build + run ${ matrix.target }
     # These targets build and run natively on their matching GitHub runners.
-    runs-on: ${${ matrix.os §}}
+    runs-on: ${${ matrix.os Â§}}
     strategy:
       fail-fast: false
       matrix:
@@ -107,16 +107,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: ${${ matrix.target §}}
+          key: ${${ matrix.target Â§}}
 
       - name: Build
-        run: cargo build --release --target ${${ matrix.target §}}
+        run: cargo build --release --target ${${ matrix.target Â§}}
 
       - name: Run the binary (native)
         shell: bash
         run: |
           set -euo pipefail
-          BIN="target/${${ matrix.target §}}/release/${${ matrix.artifact §}}"
+          BIN="target/${${ matrix.target Â§}}/release/${${ matrix.artifact Â§}}"
           "$BIN" --version
           "$BIN" --help > "$RUNNER_TEMP/aid-help.txt"
           grep -q USAGE "$RUNNER_TEMP/aid-help.txt"
@@ -127,12 +127,12 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-${${ matrix.target §}}
-          path: rust/target/${${ matrix.target §}}/release/${${ matrix.artifact §}}
+          name: aid-${${ matrix.target Â§}}
+          path: rust/target/${${ matrix.target Â§}}/release/${${ matrix.artifact Â§}}
           if-no-files-found: error
 
   android:
-    name: build Android ${${ matrix.target §}}
+    name: build Android ${${ matrix.target Â§}}
     # Android binaries are cross-compiled with the official Android NDK.
     # They are ELF executables for Termux, not APKs.
     runs-on: ubuntu-latest
@@ -158,39 +158,42 @@ jobs:
           packages: ''
 
       - name: Install Android NDK
+        env:
+          ANDROID_TARGET_ENV: ${{ matrix.target_env }}
+          ANDROID_LINKER: ${{ matrix.linker }}
         run: |
           yes | sdkmanager --licenses
           sdkmanager --install "ndk;27.2.12479018"
           NDK_BIN="$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_${${ matrix.target_env §}}_LINKER=$NDK_BIN/${${ matrix.linker §}}" >> "$GITHUB_ENV"
-          echo "CC=$NDK_BIN/${${ matrix.linker §}}" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_${ANDROID_TARGET_ENV}_LINKER=$NDK_BIN/$ANDROID_LINKER" >> "$GITHUB_ENV"
+          echo "CC=$NDK_BIN/$ANDROID_LINKER" >> "$GITHUB_ENV"
           echo "AR=$NDK_BIN/llvm-ar" >> "$GITHUB_ENV"
 
       - name: Install Rust Android target
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-          rustup target add ${${ matrix.target §}}
+          rustup target add ${${ matrix.target Â§}}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: android-${${ matrix.target §}}
+          key: android-${${ matrix.target Â§}}
 
       - name: Build Android binary
-        run: cargo build --release --target ${${ matrix.target §}}
+        run: cargo build --release --target ${${ matrix.target Â§}}
 
       - name: Inspect Android ELF binary
         run: |
-          file target/${${ matrix.target §}}/release/aid
-          readelf -h target/${${ matrix.target §}}/release/aid | grep -E 'Class:|Machine:'
+          file target/${${ matrix.target Â§}}/release/aid
+          readelf -h target/${${ matrix.target Â§}}/release/aid | grep -E 'Class:|Machine:'
 
       - name: Upload Android binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-${${ matrix.target §}}
-          path: rust/target/${${ matrix.target §}}/release/aid
+          name: aid-${${ matrix.target Â§}}
+          path: rust/target/${${ matrix.target Â§}}/release/aid
           if-no-files-found: error
 
   release:
@@ -294,9 +297,9 @@ jobs:
       - name: Authenticate with npm
         run: npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
         env:
-          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN §}}
+          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN Â§}}
 
       - name: Publish platform packages and CLI
         run: cargo npm publish
         env:
-          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN §}}
+          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN Â§}}
