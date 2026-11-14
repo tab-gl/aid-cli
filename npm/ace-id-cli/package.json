@@ -1,0 +1,12 @@
+{
+  "name": "ace-id-cli",
+  "version": "2.0.1",
+  "description": "Ace Identity Console - native CLI for AIDC applications and OAuth clients",
+  "bin": { "aid": "bin/aid.js", "ace-id": "bin/aid.js", "aidc": "bin/aid.js" },
+  "files": ["bin/", "darwin/", "linux/", "win32/", "android/", "README.md", "LICENSE"],
+  "keywords": ["aid", "aidc", "ace-id", "oidc", "oauth", "cli"],
+  "author": "The Ace Base",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/tab-gl/aid-cli.git" },
+  "engines": { "node": ">=14" }
+}
