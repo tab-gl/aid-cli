@@ -76,7 +76,7 @@ jobs:
   build:
     name: build + run ${ matrix.target }
     # These targets build and run natively on their matching GitHub runners.
-    runs-on: ${${ matrix.os Â§}}
+    runs-on: ${${ matrix.os ÃÂ§}}
     strategy:
       fail-fast: false
       matrix:
@@ -107,16 +107,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: ${${ matrix.target Â§}}
+          key: ${${ matrix.target ÃÂ§}}
 
       - name: Build
-        run: cargo build --release --target ${${ matrix.target Â§}}
+        run: cargo build --release --target ${${ matrix.target ÃÂ§}}
 
       - name: Run the binary (native)
         shell: bash
         run: |
           set -euo pipefail
-          BIN="target/${${ matrix.target Â§}}/release/${${ matrix.artifact Â§}}"
+          BIN="target/${${ matrix.target ÃÂ§}}/release/${${ matrix.artifact ÃÂ§}}"
           "$BIN" --version
           "$BIN" --help > "$RUNNER_TEMP/aid-help.txt"
           grep -q USAGE "$RUNNER_TEMP/aid-help.txt"
@@ -127,12 +127,12 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-${${ matrix.target Â§}}
-          path: rust/target/${${ matrix.target Â§}}/release/${${ matrix.artifact Â§}}
+          name: aid-${${ matrix.target ÃÂ§}}
+          path: rust/target/${${ matrix.target ÃÂ§}}/release/${${ matrix.artifact ÃÂ§}}
           if-no-files-found: error
 
   android:
-    name: build Android ${${ matrix.target Â§}}
+    name: build Android ${${ matrix.target ÃÂ§}}
     # Android binaries are cross-compiled with the official Android NDK.
     # They are ELF executables for Termux, not APKs.
     runs-on: ubuntu-latest
@@ -171,29 +171,31 @@ jobs:
           echo "AR=$NDK_BIN/llvm-ar" >> "$GITHUB_ENV"
 
       - name: Install Rust Android target
+        env:
+          ANDROID_RUST_TARGET: ${{ matrix.target }}
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-          rustup target add ${${ matrix.target Â§}}
+          rustup target add "$ANDROID_RUST_TARGET"
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: rust
-          key: android-${${ matrix.target Â§}}
+          key: android-${${ matrix.target ÃÂ§}}
 
       - name: Build Android binary
-        run: cargo build --release --target ${${ matrix.target Â§}}
+        run: cargo build --release --target ${${ matrix.target ÃÂ§}}
 
       - name: Inspect Android ELF binary
         run: |
-          file target/${${ matrix.target Â§}}/release/aid
-          readelf -h target/${${ matrix.target Â§}}/release/aid | grep -E 'Class:|Machine:'
+          file target/${${ matrix.target ÃÂ§}}/release/aid
+          readelf -h target/${${ matrix.target ÃÂ§}}/release/aid | grep -E 'Class:|Machine:'
 
       - name: Upload Android binary
         uses: actions/upload-artifact@v4
         with:
-          name: aid-${${ matrix.target Â§}}
-          path: rust/target/${${ matrix.target Â§}}/release/aid
+          name: aid-${${ matrix.target ÃÂ§}}
+          path: rust/target/${${ matrix.target ÃÂ§}}/release/aid
           if-no-files-found: error
 
   release:
@@ -297,9 +299,9 @@ jobs:
       - name: Authenticate with npm
         run: npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
         env:
-          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN Â§}}
+          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN ÃÂ§}}
 
       - name: Publish platform packages and CLI
         run: cargo npm publish
         env:
-          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN Â§}}
+          NODE_AUTH_TOKEN: ${${ secrets.NPM_TOKEN ÃÂ§}}
