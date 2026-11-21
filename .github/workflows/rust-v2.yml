@@ -6,7 +6,7 @@ name: Rust v2 CI
 
 on:
   push:
-    branches: [v2-rust]
+    branches: [master, v2-rust]
     tags: ['v2*']
     paths:
       - "rust/**"
