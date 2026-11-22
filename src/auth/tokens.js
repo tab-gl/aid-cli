@@ -84,12 +84,14 @@ export async function withTokenLock(callback) {
   await hardenDirectory();
   const startedAt = Date.now();
   let handle;
+  let lockIdentity;
 
   while (!handle) {
     let openedByUs = false;
     try {
       handle = await fs.open(LOCK_FILE, "wx", 0o600);
       openedByUs = true;
+      lockIdentity = await handle.stat();
       await handle.writeFile(JSON.stringify({ pid: process.pid, created_at: Date.now() }));
       await handle.sync();
     } catch (err) {
@@ -97,7 +99,8 @@ export async function withTokenLock(callback) {
         await handle.close().catch(() => {});
         handle = null;
       }
-      if (openedByUs) await fs.unlink(LOCK_FILE).catch(() => {});
+      if (openedByUs && lockIdentity) await unlinkLockIfSame(lockIdentity).catch(() => {});
+      lockIdentity = null;
       if (err.code !== "EEXIST") throw err;
       await removeStaleLock();
       if (Date.now() - startedAt >= LOCK_WAIT_MS) {
@@ -107,13 +110,38 @@ export async function withTokenLock(callback) {
     }
   }
 
+  const heartbeatIntervalMs = Math.max(1_000, Math.floor(STALE_LOCK_MS / 3));
+  let heartbeatWork = Promise.resolve();
+  const heartbeat = setInterval(() => {
+    heartbeatWork = heartbeatWork
+      .then(() => {
+        const now = new Date();
+        return handle.utimes(now, now);
+      })
+      .catch(() => {});
+  }, heartbeatIntervalMs);
+  heartbeat.unref?.();
+
   try {
     return await callback();
   } finally {
+    clearInterval(heartbeat);
+    await heartbeatWork;
     await handle.close().catch(() => {});
-    await fs.unlink(LOCK_FILE).catch((err) => {
-      if (err.code !== "ENOENT") throw err;
-    });
+    await unlinkLockIfSame(lockIdentity);
+  }
+}
+
+async function unlinkLockIfSame(identity) {
+  try {
+    const latest = await fs.stat(LOCK_FILE);
+    if (latest.dev === identity.dev && latest.ino === identity.ino) {
+      await fs.unlink(LOCK_FILE).catch((err) => {
+        if (err.code !== "ENOENT") throw err;
+      });
+    }
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
   }
 }
 
@@ -127,22 +155,31 @@ async function removeStaleLock() {
       owner = null;
     }
 
+    const staleByAge = Date.now() - stat.mtimeMs >= STALE_LOCK_MS;
+    let ownerIsAlive = null;
     if (Number.isInteger(owner?.pid) && owner.pid > 0) {
       try {
         process.kill(owner.pid, 0);
-        return;
+        ownerIsAlive = true;
       } catch (err) {
-        if (err.code === "EPERM") return;
-        if (err.code !== "ESRCH") return;
+        if (err.code === "EPERM") ownerIsAlive = true;
+        else if (err.code === "ESRCH") ownerIsAlive = false;
+        else return;
       }
-    } else if (Date.now() - stat.mtimeMs < STALE_LOCK_MS) {
-      return;
     }
 
-    // Recheck the lock identity before unlinking so a newly acquired lock is
-    // not removed after another process has already recovered the old one.
+    // A live PID can have been reused. Active owners heartbeat the file, so
+    // an old mtime is enough to recover a lock whose recorded PID is stale.
+    if (ownerIsAlive !== false && !staleByAge) return;
+
+    // Recheck both lock identity and modification time before unlinking so a
+    // newly acquired or refreshed lock is not removed during recovery.
     const latest = await fs.stat(LOCK_FILE);
-    if (latest.ino === stat.ino && latest.mtimeMs === stat.mtimeMs) {
+    if (
+      latest.dev === stat.dev
+      && latest.ino === stat.ino
+      && latest.mtimeMs === stat.mtimeMs
+    ) {
       await fs.unlink(LOCK_FILE).catch((err) => {
         if (err.code !== "ENOENT") throw err;
       });
@@ -190,10 +227,7 @@ function validateTokens(tokens) {
     }
   }
 
-  if (
-    tokens.expires_at !== undefined &&
-    (!Number.isFinite(tokens.expires_at) || tokens.expires_at <= 0)
-  ) {
+  if (!Number.isFinite(tokens.expires_at) || tokens.expires_at <= 0) {
     throw new Error("INVALID_TOKEN_DATA");
   }
 
