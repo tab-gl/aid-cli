@@ -114,7 +114,7 @@ export async function login() {
   s.succeed("Signed in. Tokens stored.");
 }
 
-function openBrowser(url) {
+export function openBrowser(url) {
   const platform = process.platform;
   let cmd;
   let args;
@@ -141,11 +141,12 @@ function openBrowser(url) {
     return;
   }
 
-  try {
-    spawn(cmd, args, { stdio: "ignore", detached: true }).unref();
-  } catch {
-    // URL is printed.
-  }
+  const child = spawn(cmd, args, { stdio: "ignore", detached: true });
+  child.on("error", () => {
+    // URL is printed if the browser cannot be launched.
+  });
+  child.unref();
+  return child;
 }
 
 function hasCommand(bin) {
